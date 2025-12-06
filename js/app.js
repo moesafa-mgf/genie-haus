@@ -1018,6 +1018,20 @@
     renderBoardView();
   }
 
+  function moveField(id, delta) {
+    const cols = APP_STATE.columns || [];
+    const idx = cols.findIndex((c) => c.id === id);
+    if (idx === -1) return;
+    const target = idx + delta;
+    if (target < 0 || target >= cols.length) return;
+    const copy = cols.slice();
+    const [item] = copy.splice(idx, 1);
+    copy.splice(target, 0, item);
+    APP_STATE.columns = copy;
+    persistColumns();
+    renderFieldsModal();
+  }
+
   function addField(label, type) {
     const trimmed = (label || "").trim();
     if (!trimmed) return showToast("Field name required", "error");
@@ -1098,14 +1112,23 @@
             <div>
               <div class="gt-field-name">${c.label}${c.locked ? " (locked)" : ""}</div>
               <div class="gt-field-meta">${c.type}${isSelect ? ` · ${optionsText}` : ""}</div>
+              ${
+                isSelect
+                  ? `<div class="gt-field-options-edit" data-id="${c.id}">
+                      <input class="gt-input gt-field-options-input" type="text" placeholder="Comma separated options" value="${optionsText}" />
+                      <button class="gt-button gt-button-small gt-field-options-save">Save options</button>
+                    </div>`
+                  : ""
+              }
             </div>
             <div class="gt-field-actions">
               ${
                 c.locked
                   ? ""
                   : `<button class="gt-button gt-button-small gt-field-rename">Rename</button>
-                     <button class="gt-button gt-button-danger gt-button-small gt-field-delete">Delete</button>
-                     ${isSelect ? '<button class="gt-button gt-button-small gt-field-edit-options">Edit options</button>' : ""}`
+                     <button class="gt-button gt-button-small" data-move="up">↑</button>
+                     <button class="gt-button gt-button-small" data-move="down">↓</button>
+                     <button class="gt-button gt-button-danger gt-button-small gt-field-delete">Delete</button>`
               }
             </div>
           </div>
@@ -1171,6 +1194,15 @@
       };
     });
 
+    modal.querySelectorAll(".gt-field-options-save").forEach((btn) => {
+      btn.onclick = () => {
+        const wrap = btn.closest(".gt-field-options-edit");
+        const id = wrap?.getAttribute("data-id");
+        const input = wrap?.querySelector(".gt-field-options-input");
+        updateSelectOptions(id, input?.value || "");
+      };
+    });
+
     modal.querySelectorAll(".gt-field-delete").forEach((btn) => {
       btn.onclick = () => {
         const row = btn.closest(".gt-field-row");
@@ -1179,16 +1211,12 @@
       };
     });
 
-    modal.querySelectorAll(".gt-field-edit-options").forEach((btn) => {
+    modal.querySelectorAll("[data-move]").forEach((btn) => {
       btn.onclick = () => {
         const row = btn.closest(".gt-field-row");
         const id = row?.getAttribute("data-id");
-        const col = (APP_STATE.columns || []).find((c) => c.id === id);
-        const existing = (col?.options || []).map((o) => o.label).join(", ");
-        const value = prompt("Enter options, comma separated", existing);
-        if (value !== null) {
-          updateSelectOptions(id, value);
-        }
+        const dir = btn.getAttribute("data-move") === "up" ? -1 : 1;
+        moveField(id, dir);
       };
     });
   }
@@ -1241,6 +1269,17 @@
     tbody.innerHTML = "";
 
     const rows = getFilteredTasks();
+
+    const normalizeAttachments = (val) => {
+      if (Array.isArray(val)) return val;
+      if (typeof val === "string") {
+        return val
+          .split(/\n|,/)
+          .map((s) => s.trim())
+          .filter(Boolean);
+      }
+      return [];
+    };
 
     const getValue = (task, col) => {
       if (col.id === "title") return task.title || "";
@@ -1394,6 +1433,61 @@
               touch(task);
             };
             td.appendChild(inp);
+            break;
+          }
+          case "attachment": {
+            const wrap = document.createElement("div");
+            wrap.className = "gt-attachments-cell";
+
+            const list = document.createElement("div");
+            list.className = "gt-attachments-list";
+            const items = normalizeAttachments(current);
+            items.forEach((url, idx) => {
+              const row = document.createElement("div");
+              row.className = "gt-attachment-row";
+              const link = document.createElement("a");
+              link.href = url;
+              link.target = "_blank";
+              link.rel = "noopener noreferrer";
+              link.textContent = url;
+              const remove = document.createElement("button");
+              remove.className = "gt-button gt-button-small gt-button-danger";
+              remove.textContent = "Remove";
+              remove.onclick = () => {
+                const next = items.filter((_, i) => i !== idx);
+                setValue(task, col, next);
+                touch(task);
+                renderTasks();
+              };
+              row.appendChild(link);
+              row.appendChild(remove);
+              list.appendChild(row);
+            });
+
+            const addRow = document.createElement("div");
+            addRow.className = "gt-attachments-add";
+            const inp = document.createElement("input");
+            inp.type = "url";
+            inp.placeholder = "Paste a link";
+            inp.value = "";
+            const addBtn = document.createElement("button");
+            addBtn.className = "gt-button gt-button-small";
+            addBtn.textContent = "Add";
+            addBtn.onclick = () => {
+              const val = inp.value.trim();
+              if (!val) return;
+              const next = [...items, val];
+              setValue(task, col, next);
+              touch(task);
+              inp.value = "";
+              renderTasks();
+            };
+            addRow.appendChild(inp);
+            addRow.appendChild(addBtn);
+
+            wrap.appendChild(list);
+            wrap.appendChild(addRow);
+            td.appendChild(wrap);
             break;
           }
           default: {

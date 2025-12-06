@@ -442,6 +442,12 @@ body {
   background: #fee2e2;
 }
 
+.gt-button-small {
+  padding: 3px 7px;
+  font-size: 11px;
+  border-radius: 8px;
+}
+
 /* Modal */
 .gt-modal {
   position: fixed;
@@ -623,11 +629,62 @@ body {
   color: var(--gt-text-muted);
 }
 
+.gt-field-options-edit {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
 .gt-field-actions {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.gt-attachments-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 220px;
+}
+
+.gt-attachments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gt-attachment-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f9fafb;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--gt-border-subtle);
+}
+
+.gt-attachment-row a {
+  color: #2563eb;
+  text-decoration: none;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gt-attachment-row a:hover {
+  text-decoration: underline;
+}
+
+.gt-attachments-add {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 /* Roles panel */

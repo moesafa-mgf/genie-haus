@@ -380,10 +380,6 @@ body {
   flex-direction: column;
 }
 
-.is-hidden {
-  display: none !important;
-}
-
 /* =========================
    FORM ELEMENTS
    ========================= */
@@ -609,6 +605,119 @@ body {
 
 .gt-modal-card-medium {
   width: min(560px, 92vw);
+}
+
+/* Drawer */
+.gt-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  display: none;
+}
+
+.gt-drawer:not(.is-hidden) {
+  display: block;
+}
+
+.gt-drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.4);
+}
+
+.gt-drawer-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: min(420px, 92vw);
+  background: #fff;
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.1);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.gt-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.gt-drawer-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.gt-drawer-sub {
+  font-size: 12px;
+  color: var(--gt-text-muted);
+}
+
+.gt-drawer-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.gt-drawer-section {
+  border-top: 1px solid var(--gt-border-subtle);
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gt-drawer-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gt-drawer-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gt-drawer-field-label {
+  font-size: 12px;
+  color: var(--gt-text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.gt-drawer-field-control {
+  display: flex;
+}
+
+.gt-comment-item,
+.gt-activity-item {
+  border: 1px solid var(--gt-border-subtle);
+  border-radius: 8px;
+  padding: 8px;
+  background: #f9fafb;
+}
+
+.gt-comment-meta,
+.gt-activity-meta {
+  font-size: 11px;
+  color: var(--gt-text-muted);
+}
+
+.gt-comment-text,
+.gt-activity-text {
+  font-size: 13px;
+  color: #111827;
+}
+
+.gt-comment-new {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
   font-size: 12px;
   text-transform: uppercase;
@@ -845,6 +954,42 @@ body {
   flex: 1;
 }
 
+.gt-filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--gt-border-subtle);
+  border-radius: 8px;
+  background: #ffffff;
+  margin-bottom: 8px;
+}
+
+.gt-filter-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.gt-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gt-filter-group label {
+  font-size: 11px;
+  color: var(--gt-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.gt-filter-actions {
+  display: flex;
+  align-items: flex-end;
+}
+
 .gt-table {
   width: 100%;
   height: 100%;
@@ -965,6 +1110,12 @@ body {
 
 .gt-table tbody tr:hover td {
   background: #eef2ff;
+}
+
+.gt-group-row td {
+  background: #f3f4f6 !important;
+  font-weight: 600;
+  color: #111827;
 }
 
 /* Inputs inside table */

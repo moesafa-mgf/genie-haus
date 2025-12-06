@@ -17,7 +17,16 @@
     currentView: "table", // "table" | "board" | "dashboard"
     tasks: [],
     columns: [],
-    filters: { assigneeEmail: "" },
+    activity: [],
+    workspaceFilters: {}, // workspaceId -> filters
+    filters: {
+      assigneeEmail: "",
+      status: "",
+      text: "",
+      dateFrom: "",
+      dateTo: "",
+      groupBy: "",
+    },
     sync: { status: "idle", lastRemoteAt: null },
     instanceId: `client_${Math.random().toString(36).slice(2)}`,
   };
@@ -125,6 +134,7 @@
 
                 <!-- TABLE VIEW -->
                 <div id="gt-view-table" class="gt-view-section">
+                  <div id="gt-filter-bar" class="gt-filter-bar"></div>
                   <div class="gt-table-wrapper">
                     <table class="gt-table">
                       <thead>
@@ -163,6 +173,7 @@
         <div id="gt-workspace-settings-modal" class="gt-modal is-hidden"></div>
         <div id="gt-workspace-chooser-page" class="gt-chooser-page is-hidden"></div>
         <div id="gt-fields-modal" class="gt-modal is-hidden"></div>
+        <div id="gt-detail-drawer" class="gt-drawer is-hidden"></div>
         <div id="gt-field-editor-modal" class="gt-modal is-hidden"></div>
         <div id="gt-toast-stack" class="gt-toast-stack"></div>
       </div>
@@ -351,6 +362,7 @@
       APP_STATE.staff = normalizeStaff(data.staff || []);
       renderTasks();
       renderBoardView();
+      renderFiltersBar();
       if (APP_STATE.currentView === "dashboard" && canViewDashboard()) {
         renderDashboardView();
       }
@@ -410,6 +422,13 @@
         APP_STATE.columns = Array.isArray(data.state.columns) && data.state.columns.length
           ? unlockColumns(data.state.columns)
           : unlockColumns(DEFAULT_COLUMNS.slice());
+        APP_STATE.workspaceFilters = data.state.filters || APP_STATE.workspaceFilters || {};
+        APP_STATE.activity = Array.isArray(data.state.activity) ? data.state.activity : (APP_STATE.activity || []);
+        if (APP_STATE.currentWorkspaceId) {
+          const saved = APP_STATE.workspaceFilters[APP_STATE.currentWorkspaceId];
+          APP_STATE.filters = saved ? { ...defaultFilters(), ...saved } : defaultFilters();
+          renderFiltersBar();
+        }
         renderTasks();
         renderBoardView();
         if (APP_STATE.currentView === "dashboard" && canViewDashboard()) {
@@ -417,6 +436,14 @@
         }
       } else {
         APP_STATE.columns = APP_STATE.columns.length ? unlockColumns(APP_STATE.columns) : unlockColumns(DEFAULT_COLUMNS.slice());
+        if (Array.isArray(data.state?.activity)) {
+          APP_STATE.activity = data.state.activity;
+        }
+        if (APP_STATE.currentWorkspaceId) {
+          const saved = APP_STATE.workspaceFilters[APP_STATE.currentWorkspaceId];
+          APP_STATE.filters = saved ? { ...defaultFilters(), ...saved } : defaultFilters();
+          renderFiltersBar();
+        }
       }
       setSyncStatus("ok");
     } catch (err) {
@@ -442,7 +469,12 @@
           locationId: APP_STATE.runtime.locationId,
           workspaceId: APP_STATE.currentWorkspaceId,
           userEmail: APP_STATE.runtime.email || null,
-          state: { tasks: APP_STATE.tasks, columns: APP_STATE.columns },
+          state: {
+            tasks: APP_STATE.tasks,
+            columns: APP_STATE.columns,
+            filters: APP_STATE.workspaceFilters,
+            activity: APP_STATE.activity,
+          },
         }),
       });
       const data = await resp.json();
@@ -679,13 +711,29 @@
     return (cols || []).map((c) => ({ ...c, locked: false }));
   }
 
+  function defaultFilters() {
+    return {
+      assigneeEmail: "",
+      status: "",
+      text: "",
+      dateFrom: "",
+      dateTo: "",
+      groupBy: "",
+    };
+  }
+
   function selectWorkspace(workspaceId) {
     APP_STATE.currentWorkspaceId = workspaceId;
     APP_STATE.tasks = [];
+    const savedFilters = (APP_STATE.workspaceFilters && workspaceId)
+      ? APP_STATE.workspaceFilters[workspaceId]
+      : null;
+    APP_STATE.filters = savedFilters ? { ...defaultFilters(), ...savedFilters } : defaultFilters();
     renderViewTabs();
     updateWorkspaceActionsVisibility();
     updateWorkspaceShellVisibility();
     renderWorkspaceSelect();
+    renderFiltersBar();
     renderTasks();
     renderBoardView();
     if (APP_STATE.currentView === "dashboard" && canViewDashboard()) {
@@ -1014,6 +1062,7 @@
     pushState();
     renderTasks();
     renderBoardView();
+    renderFiltersBar();
   }
 
   function moveField(id, delta) {
@@ -1213,6 +1262,134 @@
         moveField(id, dir);
       };
     });
+  }
+
+  function getStatusOptions() {
+    const statusCol = (APP_STATE.columns || []).find((c) => c.id === "status");
+    if (statusCol && Array.isArray(statusCol.options) && statusCol.options.length) {
+      return statusCol.options;
+    }
+    return [
+      { id: "todo", label: "To Do" },
+      { id: "in_progress", label: "In Progress" },
+      { id: "done", label: "Done" },
+    ];
+  }
+
+  function persistFilters() {
+    const wsId = APP_STATE.currentWorkspaceId;
+    if (!wsId) return;
+    APP_STATE.workspaceFilters[wsId] = { ...defaultFilters(), ...APP_STATE.filters };
+    schedulePush();
+  }
+
+  function renderFiltersBar() {
+    const bar = document.getElementById("gt-filter-bar");
+    if (!bar) return;
+    const f = APP_STATE.filters || defaultFilters();
+    const statusOptions = getStatusOptions();
+    const customFields = (APP_STATE.columns || []).filter(
+      (c) => !["title", "status", "assignee", "updatedAt"].includes(c.id)
+    );
+
+    const assigneeOptions = APP_STATE.staff
+      .map((u) => `<option value="${u.email}">${u.name}</option>`)
+      .join("");
+
+    const statusOptionsHtml = statusOptions
+      .map((o) => `<option value="${o.id}">${o.label}</option>`)
+      .join("");
+
+    const groupOptions = [
+      `<option value="">No grouping</option>`,
+      `<option value="status">Group by status</option>`,
+      `<option value="assignee">Group by assignee</option>`,
+      ...customFields.map((c) => `<option value="field:${c.id}">Group by ${c.label}</option>`),
+    ].join("");
+
+    bar.innerHTML = `
+      <div class="gt-filter-row">
+        <div class="gt-filter-group">
+          <label>Assignee</label>
+          <select id="gt-filter-assignee" class="gt-select">
+            <option value="">Anyone</option>
+            ${assigneeOptions}
+          </select>
+        </div>
+        <div class="gt-filter-group">
+          <label>Status</label>
+          <select id="gt-filter-status" class="gt-select">
+            <option value="">Any</option>
+            ${statusOptionsHtml}
+          </select>
+        </div>
+        <div class="gt-filter-group">
+          <label>Search</label>
+          <input id="gt-filter-text" class="gt-input" type="search" placeholder="Title or fields" />
+        </div>
+        <div class="gt-filter-group">
+          <label>Date from</label>
+          <input id="gt-filter-from" class="gt-input" type="date" />
+        </div>
+        <div class="gt-filter-group">
+          <label>Date to</label>
+          <input id="gt-filter-to" class="gt-input" type="date" />
+        </div>
+        <div class="gt-filter-group">
+          <label>Group</label>
+          <select id="gt-filter-group" class="gt-select">${groupOptions}</select>
+        </div>
+        <div class="gt-filter-actions">
+          <button id="gt-filter-clear" class="gt-button gt-button-small">Clear</button>
+        </div>
+      </div>
+    `;
+
+    const assigneeSel = document.getElementById("gt-filter-assignee");
+    const statusSel = document.getElementById("gt-filter-status");
+    const textInput = document.getElementById("gt-filter-text");
+    const fromInput = document.getElementById("gt-filter-from");
+    const toInput = document.getElementById("gt-filter-to");
+    const groupSel = document.getElementById("gt-filter-group");
+    const clearBtn = document.getElementById("gt-filter-clear");
+
+    if (assigneeSel) assigneeSel.value = f.assigneeEmail || "";
+    if (statusSel) statusSel.value = f.status || "";
+    if (textInput) textInput.value = f.text || "";
+    if (fromInput) fromInput.value = f.dateFrom || "";
+    if (toInput) toInput.value = f.dateTo || "";
+    if (groupSel) groupSel.value = f.groupBy || "";
+
+    const onChange = () => {
+      APP_STATE.filters = {
+        assigneeEmail: assigneeSel?.value || "",
+        status: statusSel?.value || "",
+        text: textInput?.value || "",
+        dateFrom: fromInput?.value || "",
+        dateTo: toInput?.value || "",
+        groupBy: groupSel?.value || "",
+      };
+      persistFilters();
+      renderTasks();
+      renderBoardView();
+    };
+
+    [assigneeSel, statusSel, textInput, fromInput, toInput, groupSel]
+      .filter(Boolean)
+      .forEach((el) => {
+        const ev = el.tagName === "INPUT" ? "input" : "change";
+        el.addEventListener(ev, onChange);
+      });
+
+    if (clearBtn) {
+      clearBtn.onclick = () => {
+        APP_STATE.filters = defaultFilters();
+        persistFilters();
+        renderFiltersBar();
+        renderTasks();
+        renderBoardView();
+      };
+    }
   }
 
   function isSelectType(type) {
@@ -1536,14 +1713,86 @@
   });
 
   function getFilteredTasks() {
-    const assignee = APP_STATE.filters.assigneeEmail;
+    const f = APP_STATE.filters || defaultFilters();
     let list = APP_STATE.tasks.slice();
-    if (assignee) {
-      list = list.filter(
-        (t) => (t.assigneeEmail || "") === assignee
-      );
+
+    if (f.assigneeEmail) {
+      list = list.filter((t) => (t.assigneeEmail || "") === f.assigneeEmail);
     }
+
+    if (f.status) {
+      list = list.filter((t) => (t.status || "") === f.status);
+    }
+
+    if (f.text) {
+      const q = f.text.toLowerCase();
+      list = list.filter((t) => {
+        const title = (t.title || "").toLowerCase();
+        const fields = t.fields || {};
+        const fieldVals = Object.values(fields)
+          .map((v) => (Array.isArray(v) ? v.join(", ") : String(v || "")))
+          .join(" ")
+          .toLowerCase();
+        return title.includes(q) || fieldVals.includes(q);
+      });
+    }
+
+    if (f.dateFrom) {
+      const from = new Date(f.dateFrom);
+      list = list.filter((t) => {
+        const d = t.updatedAt || t.createdAt;
+        return d ? new Date(d) >= from : false;
+      });
+    }
+
+    if (f.dateTo) {
+      const to = new Date(f.dateTo);
+      list = list.filter((t) => {
+        const d = t.updatedAt || t.createdAt;
+        return d ? new Date(d) <= to : false;
+      });
+    }
+
     return list;
+  }
+
+  function logActivity(taskId, fieldId, before, after) {
+    if (before === after) return;
+    if (before == null && after == null) return;
+    APP_STATE.activity = APP_STATE.activity || [];
+    APP_STATE.activity.push({
+      id: `act_${Math.random().toString(36).slice(2, 8)}`,
+      taskId,
+      field: fieldId,
+      before,
+      after,
+      user: APP_STATE.runtime.email || "unknown",
+      timestamp: new Date().toISOString(),
+    });
+    schedulePush();
+  }
+
+  function trackChange(task, fieldId, before, after) {
+    if (!task) return;
+    logActivity(task.id, fieldId, before, after);
+  }
+
+  function getAssigneeName(email) {
+    if (!email) return "Unassigned";
+    return APP_STATE.staff.find((u) => u.email === email)?.name || email;
+  }
+
+  function notifyStatusChange(task, from, to) {
+    if (from === to) return;
+    showToast(`Status: ${from || "None"} → ${to || "None"}`, "success");
+    if (to === "done") {
+      showToast(`Task completed: ${task.title || "Untitled"}`, "success");
+    }
+  }
+
+  function notifyAssignment(task, assigneeEmail) {
+    const name = getAssigneeName(assigneeEmail);
+    showToast(`Assigned to ${name}`, "success");
   }
 
   function formatDateTimeShort(iso) {
@@ -1600,6 +1849,9 @@
     tbody.innerHTML = "";
 
     const rows = getFilteredTasks();
+    const groupBy = APP_STATE.filters?.groupBy || "";
+    const statusLabels = Object.fromEntries(getStatusOptions().map((o) => [o.id, o.label]));
+    const customFieldMap = Object.fromEntries((APP_STATE.columns || []).map((c) => [c.id, c]));
 
     const normalizeAttachments = (val) => {
       if (Array.isArray(val)) return val;
@@ -1639,17 +1891,19 @@
       task.fields[col.id] = val;
     };
 
+
     const renderSelectOptions = (col) => {
       const opts = Array.isArray(col.options) ? col.options : [];
       return opts.map((o) => `<option value="${o.id}">${o.label}</option>`).join("");
     };
 
-    rows.forEach((task) => {
+    const makeRow = (task) => {
       const tr = document.createElement("tr");
 
       columns.forEach((col) => {
         const td = document.createElement("td");
         const current = getValue(task, col);
+        const prev = current;
 
         if (col.id === "updatedAt") {
           td.innerHTML = `<span class="gt-tiny">${formatDateTimeShort(current)}</span>`;
@@ -1664,6 +1918,7 @@
             inp.value = current || "";
             inp.onchange = () => {
               setValue(task, col, inp.value);
+              trackChange(task, col.id, prev, inp.value);
               touch(task);
               renderBoardView();
               if (APP_STATE.currentView === "dashboard" && canViewDashboard()) {
@@ -1679,6 +1934,7 @@
             ta.value = current || "";
             ta.onchange = () => {
               setValue(task, col, ta.value);
+              trackChange(task, col.id, prev, ta.value);
               touch(task);
             };
             td.appendChild(ta);
@@ -1690,6 +1946,7 @@
             cb.checked = !!current;
             cb.onchange = () => {
               setValue(task, col, cb.checked);
+              trackChange(task, col.id, prev, cb.checked);
               touch(task);
             };
             td.appendChild(cb);
@@ -1701,6 +1958,8 @@
             sel.value = current || "";
             sel.onchange = () => {
               setValue(task, col, sel.value || null);
+              trackChange(task, col.id, prev, sel.value || null);
+              notifyStatusChange(task, prev, sel.value || null);
               touch(task);
               renderBoardView();
             };
@@ -1719,6 +1978,7 @@
             sel.onchange = () => {
               const vals = Array.from(sel.selectedOptions).map((o) => o.value);
               setValue(task, col, vals);
+              trackChange(task, col.id, prev, vals);
               touch(task);
             };
             td.appendChild(sel);
@@ -1739,6 +1999,7 @@
             sel.value = current || "";
             sel.onchange = () => {
               setValue(task, col, sel.value || null);
+              trackChange(task, col.id, prev, sel.value || null);
               touch(task);
             };
             td.appendChild(sel);
@@ -1750,6 +2011,7 @@
             inp.value = current ? current.slice(0, 10) : "";
             inp.onchange = () => {
               setValue(task, col, inp.value || null);
+              trackChange(task, col.id, prev, inp.value || null);
               touch(task);
             };
             td.appendChild(inp);
@@ -1760,7 +2022,9 @@
             inp.type = "number";
             inp.value = current ?? "";
             inp.onchange = () => {
-              setValue(task, col, inp.value === "" ? null : Number(inp.value));
+              const next = inp.value === "" ? null : Number(inp.value);
+              setValue(task, col, next);
+              trackChange(task, col.id, prev, next);
               touch(task);
             };
             td.appendChild(inp);
@@ -1787,6 +2051,7 @@
               remove.onclick = () => {
                 const next = items.filter((_, i) => i !== idx);
                 setValue(task, col, next);
+                trackChange(task, col.id, prev, next);
                 touch(task);
                 renderTasks();
               };
@@ -1809,6 +2074,7 @@
               if (!val) return;
               const next = [...items, val];
               setValue(task, col, next);
+              trackChange(task, col.id, prev, next);
               touch(task);
               inp.value = "";
               renderTasks();
@@ -1827,6 +2093,7 @@
             inp.value = current || "";
             inp.onchange = () => {
               setValue(task, col, inp.value);
+              trackChange(task, col.id, prev, inp.value);
               touch(task);
             };
             td.appendChild(inp);
@@ -1852,8 +2119,63 @@
       tdDel.appendChild(btn);
       tr.appendChild(tdDel);
 
+      tr.addEventListener("click", (e) => {
+        if (e.target.closest("input,select,textarea,button,a")) return;
+        openDetailDrawer(task.id);
+      });
+
       tbody.appendChild(tr);
-    });
+    };
+
+    const appendGroupHeader = (label) => {
+      const tr = document.createElement("tr");
+      tr.className = "gt-group-row";
+      const td = document.createElement("td");
+      td.colSpan = columns.length + 1;
+      td.textContent = label;
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+    };
+
+    const getGroupInfo = (task) => {
+      if (!groupBy) return null;
+      if (groupBy === "status") {
+        const key = task.status || "(none)";
+        return { key, label: statusLabels[key] || "No status" };
+      }
+      if (groupBy === "assignee") {
+        const key = task.assigneeEmail || "__none";
+        const name = APP_STATE.staff.find((u) => u.email === task.assigneeEmail)?.name;
+        return { key, label: name || "Unassigned" };
+      }
+      if (groupBy.startsWith("field:")) {
+        const fid = groupBy.split(":")[1];
+        const val = (task.fields || {})[fid];
+        const field = customFieldMap[fid];
+        const labelVal = Array.isArray(val) ? val.join(", ") : val || "No value";
+        const base = field ? field.label : "Field";
+        const key = Array.isArray(val) ? val.join("|") : (val || "__none");
+        return { key, label: `${base}: ${labelVal}` };
+      }
+      return null;
+    };
+
+    if (groupBy) {
+      const groups = new Map();
+      rows.forEach((task) => {
+        const info = getGroupInfo(task);
+        const key = info?.key ?? "__none";
+        if (!groups.has(key)) groups.set(key, { label: info?.label || "(None)", items: [] });
+        groups.get(key).items.push(task);
+      });
+      Array.from(groups.keys()).forEach((key) => {
+        const g = groups.get(key);
+        appendGroupHeader(g.label || "Group");
+        g.items.forEach((t) => makeRow(t));
+      });
+    } else {
+      rows.forEach((task) => makeRow(task));
+    }
   }
 
   // -------- 9. BOARD VIEW (Kanban) --------
@@ -1901,6 +2223,8 @@
         const oldStatus = task.status || "todo";
         const newStatus = col.id;
         task.status = newStatus;
+        logActivity(task.id, "status", oldStatus, newStatus);
+        notifyStatusChange(task, oldStatus, newStatus);
 
         if (newStatus === "done" && !task.completedAt) {
           task.completedAt = new Date().toISOString();
@@ -1929,6 +2253,11 @@
           draggedTaskId = null;
         });
 
+        card.addEventListener("click", (e) => {
+          e.stopPropagation();
+          openDetailDrawer(task.id);
+        });
+
         const assignee =
           APP_STATE.staff.find((u) => u.email === task.assigneeEmail)?.name ||
           "Unassigned";
@@ -1949,6 +2278,276 @@
       colEl.appendChild(body);
       root.appendChild(colEl);
     });
+  }
+
+  // -------- Detail Drawer --------
+  function closeDetailDrawer() {
+    const drawer = document.getElementById("gt-detail-drawer");
+    if (drawer) {
+      drawer.classList.add("is-hidden");
+      drawer.innerHTML = "";
+    }
+  }
+
+  function openDetailDrawer(taskId) {
+    const drawer = document.getElementById("gt-detail-drawer");
+    if (!drawer) return;
+    const task = APP_STATE.tasks.find((t) => t.id === taskId);
+    if (!task) return;
+
+    const columns = (APP_STATE.columns && APP_STATE.columns.length)
+      ? APP_STATE.columns
+      : DEFAULT_COLUMNS;
+
+    const statusOptions = getStatusOptions();
+    const statusLabel = statusOptions.find((s) => s.id === (task.status || ""))?.label || "Status";
+    const activity = (APP_STATE.activity || [])
+      .filter((a) => a.taskId === task.id)
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    const getValue = (col) => {
+      if (col.id === "title") return task.title || "";
+      if (col.id === "status") return task.status || "";
+      if (col.id === "assignee") return task.assigneeEmail || "";
+      if (col.id === "updatedAt") return task.updatedAt || null;
+      return (task.fields || {})[col.id];
+    };
+
+    const setValue = (col, val, prev) => {
+      if (col.id === "title") task.title = val;
+      else if (col.id === "status") task.status = val;
+      else if (col.id === "assignee") task.assigneeEmail = val || null;
+      else if (col.id !== "updatedAt") {
+        task.fields = task.fields || {};
+        task.fields[col.id] = val;
+      }
+      trackChange(task, col.id, prev, val);
+      if (col.id === "status") {
+        notifyStatusChange(task, prev, val);
+      }
+      touch(task);
+      renderTasks();
+      renderBoardView();
+    };
+
+    const renderFieldControl = (col) => {
+      const value = getValue(col);
+      const prev = value;
+      const wrapper = document.createElement("div");
+      wrapper.className = "gt-drawer-field";
+      const label = document.createElement("div");
+      label.className = "gt-drawer-field-label";
+      label.textContent = col.label;
+      wrapper.appendChild(label);
+
+      const controlHolder = document.createElement("div");
+      controlHolder.className = "gt-drawer-field-control";
+
+      const renderSelectOptions = (col) => {
+        const opts = Array.isArray(col.options) ? col.options : [];
+        return opts.map((o) => `<option value="${o.id}">${o.label}</option>`).join("");
+      };
+
+      switch (col.type) {
+        case "text": {
+          const inp = document.createElement("input");
+          inp.className = "gt-input";
+          inp.value = value || "";
+          inp.onchange = () => setValue(col, inp.value, prev);
+          controlHolder.appendChild(inp);
+          break;
+        }
+        case "long_text": {
+          const ta = document.createElement("textarea");
+          ta.className = "gt-textarea";
+          ta.value = value || "";
+          ta.onchange = () => setValue(col, ta.value, prev);
+          controlHolder.appendChild(ta);
+          break;
+        }
+        case "checkbox": {
+          const cb = document.createElement("input");
+          cb.type = "checkbox";
+          cb.checked = !!value;
+          cb.onchange = () => setValue(col, cb.checked, prev);
+          controlHolder.appendChild(cb);
+          break;
+        }
+        case "single_select": {
+          const sel = document.createElement("select");
+          sel.className = "gt-select";
+          sel.innerHTML = `<option value="">Select…</option>` + renderSelectOptions(col);
+          sel.value = value || "";
+          sel.onchange = () => setValue(col, sel.value || null, prev);
+          controlHolder.appendChild(sel);
+          break;
+        }
+        case "multi_select": {
+          const sel = document.createElement("select");
+          sel.className = "gt-select";
+          sel.multiple = true;
+          sel.size = 4;
+          sel.innerHTML = renderSelectOptions(col);
+          const selected = Array.isArray(value) ? value : [];
+          Array.from(sel.options).forEach((o) => {
+            o.selected = selected.includes(o.value);
+          });
+          sel.onchange = () => {
+            const vals = Array.from(sel.selectedOptions).map((o) => o.value);
+            setValue(col, vals, prev);
+          };
+          controlHolder.appendChild(sel);
+          break;
+        }
+        case "user": {
+          const sel = document.createElement("select");
+          sel.className = "gt-select";
+          sel.innerHTML = `<option value="">Unassigned</option>` +
+            APP_STATE.staff.map((u) => `<option value="${u.email}">${u.name}</option>`).join("");
+          sel.value = value || "";
+          sel.onchange = () => setValue(col, sel.value || null, prev);
+          controlHolder.appendChild(sel);
+          break;
+        }
+        case "date": {
+          const inp = document.createElement("input");
+          inp.type = "date";
+          inp.className = "gt-input";
+          inp.value = value ? String(value).slice(0, 10) : "";
+          inp.onchange = () => setValue(col, inp.value || null, prev);
+          controlHolder.appendChild(inp);
+          break;
+        }
+        case "number": {
+          const inp = document.createElement("input");
+          inp.type = "number";
+          inp.className = "gt-input";
+          inp.value = value ?? "";
+          inp.onchange = () => {
+            const next = inp.value === "" ? null : Number(inp.value);
+            setValue(col, next, prev);
+          };
+          controlHolder.appendChild(inp);
+          break;
+        }
+        default: {
+          const inp = document.createElement("input");
+          inp.className = "gt-input";
+          inp.value = value || "";
+          inp.onchange = () => setValue(col, inp.value, prev);
+          controlHolder.appendChild(inp);
+        }
+      }
+
+      wrapper.appendChild(controlHolder);
+      return wrapper;
+    };
+
+    const comments = task.comments || [];
+    const commentsHtml = comments.length
+      ? comments
+          .map((c) => {
+            const who = c.user || "Unknown";
+            const when = formatDateTimeShort(c.timestamp);
+            return `<div class="gt-comment-item"><div class="gt-comment-meta">${who} · ${when}</div><div class="gt-comment-text">${c.text}</div></div>`;
+          })
+          .join("")
+      : `<div class="gt-muted">No comments yet</div>`;
+
+    const activityHtml = activity.length
+      ? activity
+          .map((a) => `<div class="gt-activity-item"><div class="gt-activity-meta">${formatDateTimeShort(a.timestamp)} · ${a.user || "unknown"}</div><div class="gt-activity-text">${a.field}: ${a.before ?? ""} → ${a.after ?? ""}</div></div>`)
+          .join("")
+      : `<div class="gt-muted">No activity</div>`;
+
+    drawer.innerHTML = `
+      <div class="gt-drawer-backdrop" data-close="1"></div>
+      <div class="gt-drawer-panel">
+        <div class="gt-drawer-header">
+          <div>
+            <div class="gt-drawer-title">${task.title || "Untitled"}</div>
+            <div class="gt-drawer-sub">${statusLabel}</div>
+          </div>
+          <div class="gt-drawer-actions">
+            <button class="gt-button" id="gt-drawer-close">✕</button>
+            <button class="gt-button gt-button-danger" id="gt-drawer-delete">Delete</button>
+          </div>
+        </div>
+
+        <div class="gt-drawer-section">
+          <h4>Fields</h4>
+          <div id="gt-drawer-fields" class="gt-drawer-fields"></div>
+        </div>
+
+        <div class="gt-drawer-section">
+          <h4>Comments</h4>
+          <div id="gt-comments-list">${commentsHtml}</div>
+          <div class="gt-comment-new">
+            <textarea id="gt-comment-input" class="gt-textarea" rows="3" placeholder="Add a comment"></textarea>
+            <button class="gt-button gt-button-primary" id="gt-comment-add">Add comment</button>
+          </div>
+        </div>
+
+        <div class="gt-drawer-section">
+          <h4>Activity</h4>
+          <div id="gt-activity-list">${activityHtml}</div>
+        </div>
+      </div>
+    `;
+
+    drawer.classList.remove("is-hidden");
+
+    const fieldsRoot = document.getElementById("gt-drawer-fields");
+    if (fieldsRoot) {
+      // render controls into root
+      fieldsRoot.innerHTML = "";
+      const frag = document.createDocumentFragment();
+      columns.forEach((c) => frag.appendChild(renderFieldControl(c)));
+      fieldsRoot.appendChild(frag);
+    }
+
+    const closeBtn = document.getElementById("gt-drawer-close");
+    const delBtn = document.getElementById("gt-drawer-delete");
+    const addCommentBtn = document.getElementById("gt-comment-add");
+    const commentInput = document.getElementById("gt-comment-input");
+
+    drawer.querySelectorAll(".gt-drawer-backdrop").forEach((b) => {
+      b.onclick = closeDetailDrawer;
+    });
+
+    if (closeBtn) closeBtn.onclick = closeDetailDrawer;
+
+    if (delBtn) {
+      delBtn.onclick = () => {
+        if (!confirm("Delete this task?")) return;
+        APP_STATE.tasks = APP_STATE.tasks.filter((t) => t.id !== task.id);
+        schedulePush();
+        renderTasks();
+        renderBoardView();
+        if (APP_STATE.currentView === "dashboard" && canViewDashboard()) {
+          renderDashboardView();
+        }
+        closeDetailDrawer();
+      };
+    }
+
+    if (addCommentBtn && commentInput) {
+      addCommentBtn.onclick = () => {
+        const text = commentInput.value.trim();
+        if (!text) return;
+        const entry = {
+          id: `c_${Math.random().toString(36).slice(2, 7)}`,
+          text,
+          user: APP_STATE.runtime.email || "unknown",
+          timestamp: new Date().toISOString(),
+        };
+        task.comments = task.comments || [];
+        task.comments.push(entry);
+        commentInput.value = "";
+        touch(task);
+        openDetailDrawer(task.id); // re-render drawer to show new comment
+      };
+    }
   }
 
   // -------- 10. DASHBOARD VIEW --------
@@ -2126,6 +2725,7 @@
     renderViewTabs();
     renderTasks();
     renderBoardView();
+    renderFiltersBar();
     updateWorkspaceShellVisibility();
     updateWorkspaceActionsVisibility();
 

@@ -1,3 +1,33 @@
+.gt-chooser-page {
+  width: 100%;
+  height: 100%;
+  display: none;
+}
+
+.gt-chooser-page:not(.is-hidden) {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+.gt-chooser-shell {
+  width: min(960px, 96vw);
+  background: #fff;
+  border: 1px solid var(--gt-border-subtle);
+  border-radius: 14px;
+  box-shadow: var(--gt-shadow-soft);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gt-chooser-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 /* =========================
    RESET / BASE
    ========================= */

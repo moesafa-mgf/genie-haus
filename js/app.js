@@ -56,7 +56,7 @@
           </div>
         </header>
 
-        <main class="gt-main">
+        <main id="gt-main" class="gt-main">
           <section class="gt-panel">
             <div class="gt-panel-header">
               <h2>Tasks</h2>
@@ -126,7 +126,7 @@
           </section>
         </main>
         <div id="gt-workspace-settings-modal" class="gt-modal is-hidden"></div>
-        <div id="gt-workspace-chooser" class="gt-modal is-hidden"></div>
+        <div id="gt-workspace-chooser-page" class="gt-chooser-page is-hidden"></div>
       </div>
     `;
   }
@@ -488,8 +488,9 @@
 
   // -------- Workspace chooser --------
   function openWorkspaceChooser() {
-    const modal = document.getElementById("gt-workspace-chooser");
-    if (!modal) return;
+    const page = document.getElementById("gt-workspace-chooser-page");
+    const main = document.getElementById("gt-main");
+    if (!page || !main) return;
     UI_STATE.chooserOpen = true;
 
     const canCreate = getCurrentUserRole() === "admin";
@@ -512,25 +513,23 @@
       )
       .join("") || "<div class='gt-muted'>No workspaces</div>";
 
-    modal.innerHTML = `
-      <div class="gt-modal-backdrop"></div>
-      <div class="gt-modal-card gt-modal-card-large">
-        <div class="gt-modal-header">
+    page.innerHTML = `
+      <div class="gt-chooser-shell">
+        <div class="gt-chooser-header">
           <div>
             <div class="gt-modal-title">Select a workspace</div>
             <div class="gt-modal-sub">Workspaces available to you</div>
           </div>
+          ${canCreate ? '<button id="gt-chooser-create" class="gt-button gt-button-primary">+ New Workspace</button>' : ""}
         </div>
         <div class="gt-workspace-picker-list">${items}</div>
-        ${canCreate
-          ? '<button id="gt-chooser-create" class="gt-button gt-button-primary" style="margin-top:12px;">+ New Workspace</button>'
-          : ""}
       </div>
     `;
 
-    modal.classList.remove("is-hidden");
+    page.classList.remove("is-hidden");
+    main.classList.add("is-hidden");
 
-    modal.querySelectorAll(".gt-workspace-picker-item").forEach((el) => {
+    page.querySelectorAll(".gt-workspace-picker-item").forEach((el) => {
       el.onclick = () => {
         const id = el.getAttribute("data-id");
         selectWorkspace(id);
@@ -549,17 +548,18 @@
     const createBtn = document.getElementById("gt-chooser-create");
     if (createBtn) {
       createBtn.onclick = () => {
-        closeWorkspaceChooser();
         createWorkspaceFlow();
       };
     }
   }
 
   function closeWorkspaceChooser() {
-    const modal = document.getElementById("gt-workspace-chooser");
-    if (!modal) return;
-    modal.classList.add("is-hidden");
-    modal.innerHTML = "";
+    const page = document.getElementById("gt-workspace-chooser-page");
+    const main = document.getElementById("gt-main");
+    if (!page || !main) return;
+    page.classList.add("is-hidden");
+    page.innerHTML = "";
+    main.classList.remove("is-hidden");
     UI_STATE.chooserOpen = false;
   }
 

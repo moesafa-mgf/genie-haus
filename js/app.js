@@ -2662,9 +2662,21 @@
       selectBox.type = "checkbox";
       selectBox.className = "gt-row-select";
       selectBox.addEventListener("click", (e) => e.stopPropagation());
+      selectBox.addEventListener("change", () => {
+        tr.classList.toggle("is-row-selected", selectBox.checked);
+      });
 
       const divider = document.createElement("span");
       divider.className = "gt-row-divider";
+
+      const expandBtn = document.createElement("button");
+      expandBtn.className = "gt-row-expand-btn";
+      expandBtn.title = "Open record";
+      expandBtn.textContent = "⤢";
+      expandBtn.onclick = (e) => {
+        e.stopPropagation();
+        openDetailDrawer(task.id);
+      };
 
       const leadInner = document.createElement("div");
       leadInner.className = "gt-row-leading-inner";
@@ -2672,6 +2684,7 @@
       leadInner.appendChild(rowNum);
       leadInner.appendChild(selectBox);
       leadInner.appendChild(divider);
+      leadInner.appendChild(expandBtn);
 
       lead.appendChild(leadInner);
       tr.appendChild(lead);
@@ -2937,38 +2950,8 @@
           }
         }
 
-        if (colIdx === 0) {
-          td.classList.add("gt-cell-leading-content");
-          const wrap = document.createElement("div");
-          wrap.className = "gt-cell-leading-wrap";
-          while (td.firstChild) wrap.appendChild(td.firstChild);
-          td.appendChild(wrap);
-
-          const expandBtn = document.createElement("button");
-          expandBtn.className = "gt-cell-expand";
-          expandBtn.title = "Open record";
-          expandBtn.textContent = "⤢";
-          expandBtn.onclick = (e) => {
-            e.stopPropagation();
-            openDetailDrawer(task.id);
-          };
-          td.appendChild(expandBtn);
-        }
-
         tr.appendChild(td);
       });
-
-      const tdActions = document.createElement("td");
-      tdActions.className = "gt-row-actions";
-      const openBtn = document.createElement("button");
-      openBtn.className = "gt-row-expand";
-      openBtn.textContent = "Open";
-      openBtn.onclick = (e) => {
-        e.stopPropagation();
-        openDetailDrawer(task.id);
-      };
-      tdActions.appendChild(openBtn);
-      tr.appendChild(tdActions);
 
       tr.addEventListener("contextmenu", (e) => {
         e.preventDefault();

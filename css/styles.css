@@ -499,6 +499,12 @@ body {
   display: block;
 }
 
+.gt-workspace-picker-emoji {
+  font-size: 18px;
+  line-height: 1;
+  display: inline-block;
+}
+
 .gt-workspace-picker-gear {
   margin-left: auto;
   border: 1px solid var(--gt-border-subtle);

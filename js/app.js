@@ -497,15 +497,19 @@
     const filtered = APP_STATE.workspaces;
 
     const items = filtered
-      .map(
-        (ws) => `
+      .map((ws) => {
+        const iconVal = ws.icon_url || "";
+        const isUrl = iconVal.startsWith("http://") || iconVal.startsWith("https://");
+        const iconHtml = iconVal
+          ? isUrl
+            ? `<img src="${iconVal}" alt="icon" />`
+            : `<span class="gt-workspace-picker-emoji">${iconVal}</span>`
+          : "📋";
+
+        return `
           <div class="gt-workspace-picker-item" data-id="${ws.id}">
             <div class="gt-workspace-picker-meta">
-              <div class="gt-workspace-picker-icon">${
-                ws.icon_url
-                  ? `<img src="${ws.icon_url}" alt="icon" />`
-                  : "📋"
-              }</div>
+              <div class="gt-workspace-picker-icon">${iconHtml}</div>
               <div>
                 <div class="gt-workspace-picker-name">${ws.name}</div>
                 <div class="gt-workspace-picker-sub">Workspace</div>
@@ -513,8 +517,8 @@
               ${canCreate ? '<button class="gt-workspace-picker-gear" title="Settings">⚙</button>' : ""}
             </div>
           </div>
-        `
-      )
+        `;
+      })
       .join("") || "<div class='gt-muted'>No workspaces</div>";
 
     page.innerHTML = `
@@ -675,9 +679,9 @@
         </div>
         <div class="gt-modal-section">
           <div class="gt-modal-label">Icon</div>
-          <div class="gt-modal-help">Paste a favicon or image URL to show in the chooser.</div>
+          <div class="gt-modal-help">Use an emoji (e.g. 🔮) or an image URL.</div>
           <div class="gt-role-form">
-            <input id="gt-icon-url" class="gt-input" type="url" placeholder="https://.../favicon.ico" value="${iconUrl}" />
+            <input id="gt-icon-url" class="gt-input" type="text" placeholder="🔮 or https://.../icon.png" value="${iconUrl}" />
             <button id="gt-icon-save" class="gt-button gt-button-primary">Save Icon</button>
           </div>
         </div>

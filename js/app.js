@@ -2048,18 +2048,25 @@
   function setChooserVisibility(show) {
     const page = document.getElementById("gt-workspace-chooser-page");
     const main = document.getElementById("gt-main");
+    const header = document.querySelector(".gt-header");
     if (!page || !main) return;
     if (show) {
       page.classList.remove("is-hidden");
       page.style.display = "flex";
       main.classList.add("is-hidden");
       main.style.display = "none";
+      if (header) {
+        header.classList.add("is-hidden");
+      }
       UI_STATE.chooserOpen = true;
     } else {
       page.classList.add("is-hidden");
       page.style.display = "none";
       main.classList.remove("is-hidden");
       main.style.display = "";
+      if (header) {
+        header.classList.remove("is-hidden");
+      }
       UI_STATE.chooserOpen = false;
     }
   }

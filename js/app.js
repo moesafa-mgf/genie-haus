@@ -666,7 +666,7 @@
     root.innerHTML = `
       <div class="gt-grid-tabs-bar">
         <div class="gt-grid-tab-list">${tabs}</div>
-        <button id="gt-grid-add" class="gt-grid-tab gt-grid-tab-add" title="Add grid">+</button>
+        <button id="gt-grid-add" class="gt-grid-tab gt-grid-tab-add" type="button" title="Add grid" aria-label="Add grid">+</button>
       </div>
     `;
 
@@ -680,11 +680,9 @@
     const addBtn = document.getElementById("gt-grid-add");
     if (addBtn) {
       addBtn.onclick = () => {
-        const name = prompt("Grid name", `Grid ${APP_STATE.grids.length + 1}`);
-        if (!name || !name.trim()) return;
         const grid = {
           id: `grid_${Math.random().toString(36).slice(2, 6)}`,
-          name: name.trim(),
+          name: `Grid ${APP_STATE.grids.length + 1}`,
           filters: { ...APP_STATE.filters },
         };
         APP_STATE.grids.push(grid);

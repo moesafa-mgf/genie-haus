@@ -797,8 +797,7 @@
       </div>
     `;
 
-    page.classList.remove("is-hidden");
-    main.classList.add("is-hidden");
+    setChooserVisibility(true);
 
     page.querySelectorAll(".gt-workspace-picker-item").forEach((el) => {
       el.onclick = () => {
@@ -828,10 +827,8 @@
     const page = document.getElementById("gt-workspace-chooser-page");
     const main = document.getElementById("gt-main");
     if (!page || !main) return;
-    page.classList.add("is-hidden");
     page.innerHTML = "";
-    main.classList.remove("is-hidden");
-    UI_STATE.chooserOpen = false;
+    setChooserVisibility(false);
   }
 
   // -------- 6. Workspace shell visibility --------
@@ -848,6 +845,11 @@
       if (hasWs) {
         shell.style.flexDirection = "column";
       }
+    }
+
+    // Ensure chooser and main are mutually exclusive if no workspace is selected
+    if (!hasWs) {
+      setChooserVisibility(true);
     }
   }
 
@@ -1027,6 +1029,7 @@
       fetchWorkspaceRoles(workspaceId);
       loadRemote();
     }
+    setChooserVisibility(false);
   }
 
   function updateWorkspaceActionsVisibility() {
@@ -2040,6 +2043,25 @@
       contextMenuEl.parentElement.removeChild(contextMenuEl);
     }
     contextMenuEl = null;
+  }
+
+  function setChooserVisibility(show) {
+    const page = document.getElementById("gt-workspace-chooser-page");
+    const main = document.getElementById("gt-main");
+    if (!page || !main) return;
+    if (show) {
+      page.classList.remove("is-hidden");
+      page.style.display = "flex";
+      main.classList.add("is-hidden");
+      main.style.display = "none";
+      UI_STATE.chooserOpen = true;
+    } else {
+      page.classList.add("is-hidden");
+      page.style.display = "none";
+      main.classList.remove("is-hidden");
+      main.style.display = "";
+      UI_STATE.chooserOpen = false;
+    }
   }
 
   function closeGridMenu() {

@@ -1430,43 +1430,21 @@ tr:hover .gt-row-leading .gt-row-open {
 .gt-task-title-input,
 .gt-table select {
   width: 100%;
-  border-radius: 4px;
-  border: 1px solid transparent;
-  padding: 2px 3px;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  padding: 6px 8px;
   font-size: 13px;
-  background: transparent;
+  background: #ffffff;
   color: var(--gt-text-main);
   outline: none;
+  transition: box-shadow 0.12s ease, border-color 0.12s ease;
 }
 
 .gt-task-title-input:focus,
 .gt-table select:focus {
-  border-color: var(--gt-accent);
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.25);
   background: #ffffff;
-}
-
-.gt-pill-select {
-  border: 1px solid var(--gt-border-subtle);
-  border-radius: 999px;
-  padding: 6px 12px;
-  font-weight: 600;
-  font-size: 13px;
-  background: #f8fafc;
-  color: #374151;
-  transition: box-shadow 0.12s ease, border-color 0.12s ease, background 0.12s ease;
-  min-width: 140px;
-}
-
-.gt-pill-select:focus {
-  border-color: #c7d2fe;
-  box-shadow: 0 0 0 3px rgba(199, 210, 254, 0.35);
-  outline: none;
-  background: #ffffff;
-}
-
-.gt-pill-select option {
-  font-weight: 500;
-  padding: 6px 8px;
 }
 
 .gt-pill {

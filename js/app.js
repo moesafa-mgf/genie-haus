@@ -2726,7 +2726,6 @@
           }
           case "single_select": {
             const sel = document.createElement("select");
-            sel.className = "gt-pill-select";
             sel.innerHTML = `<option value="">Select…</option>` + renderSelectOptions(col);
             sel.value = current || "";
             const applyColor = () => {
@@ -2770,7 +2769,6 @@
           }
           case "user": {
             const sel = document.createElement("select");
-            sel.className = "gt-pill-select";
             const optNone = document.createElement("option");
             optNone.value = "";
             optNone.textContent = "Unassigned";

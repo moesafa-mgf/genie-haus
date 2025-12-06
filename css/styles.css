@@ -610,16 +610,6 @@ body {
   flex-wrap: wrap;
 }
 
-.gt-icon-field {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 6px;
-  border: 1px solid var(--gt-border-subtle);
-  border-radius: 8px;
-  background: #fff;
-}
-
 .gt-icon-preview {
   width: 32px;
   height: 32px;
@@ -629,17 +619,6 @@ body {
   align-items: center;
   justify-content: center;
   font-size: 18px;
-}
-
-.gt-icon-input {
-  border: none;
-  padding-left: 0;
-  min-width: 120px;
-}
-
-.gt-icon-input:focus {
-  box-shadow: none;
-  border: none;
 }
 
 .gt-input {

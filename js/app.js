@@ -740,10 +740,7 @@
           <div class="gt-modal-label">Icon</div>
           <div class="gt-modal-help">Pick from the list or paste any emoji.</div>
           <div class="gt-role-form">
-            <div class="gt-icon-field">
-              <span id="gt-icon-preview" class="gt-icon-preview">${iconVal || "📋"}</span>
-              <input id="gt-icon-url" class="gt-input gt-icon-input" type="text" placeholder="🔮 paste or pick" value="${iconVal}" />
-            </div>
+            <span id="gt-icon-preview" class="gt-icon-preview">${iconVal || "📋"}</span>
             <select id="gt-emoji-select" class="gt-select">${emojiOptions}</select>
             <button id="gt-icon-save" class="gt-button gt-button-primary">Save Icon</button>
           </div>
@@ -773,11 +770,12 @@
     });
 
     const iconSave = document.getElementById("gt-icon-save");
-    const iconInput = document.getElementById("gt-icon-url");
     const iconPreview = document.getElementById("gt-icon-preview");
     const emojiSelect = document.getElementById("gt-emoji-select");
     const renameBtn = document.getElementById("gt-ws-rename");
     const nameInput = document.getElementById("gt-ws-name");
+
+    let currentIcon = iconVal || "";
 
     const setPreview = (val) => {
       if (iconPreview) {
@@ -786,10 +784,9 @@
     };
     setPreview(iconVal);
 
-    if (iconSave && iconInput) {
+    if (iconSave) {
       iconSave.onclick = async () => {
-        const raw = iconInput.value;
-        const val = raw && raw.trim() ? raw.trim() : null;
+        const val = currentIcon ? currentIcon.trim() : null;
         const updated = await patchWorkspace(ws.id, { iconUrl: val });
         if (updated) showToast("Workspace icon saved", "success");
       };
@@ -807,26 +804,17 @@
       };
     }
 
-    if (emojiSelect && iconInput) {
+    if (emojiSelect) {
       emojiSelect.onchange = () => {
         const choice = emojiSelect.value;
-        if (choice === "custom") {
-          iconInput.focus();
-          iconInput.select();
-          return;
-        }
         if (choice) {
-          iconInput.value = choice;
+          currentIcon = choice;
           setPreview(choice);
+        } else {
+          currentIcon = "";
+          setPreview("");
         }
       };
-    }
-
-    if (iconInput) {
-      iconInput.addEventListener("input", () => {
-        const val = iconInput.value && iconInput.value.trim();
-        setPreview(val);
-      });
     }
   }
 

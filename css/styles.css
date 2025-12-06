@@ -1445,6 +1445,30 @@ tr:hover .gt-row-leading .gt-row-open {
   background: #ffffff;
 }
 
+.gt-pill-select {
+  border: 1px solid var(--gt-border-subtle);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-weight: 600;
+  font-size: 13px;
+  background: #f8fafc;
+  color: #374151;
+  transition: box-shadow 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+  min-width: 140px;
+}
+
+.gt-pill-select:focus {
+  border-color: #c7d2fe;
+  box-shadow: 0 0 0 3px rgba(199, 210, 254, 0.35);
+  outline: none;
+  background: #ffffff;
+}
+
+.gt-pill-select option {
+  font-weight: 500;
+  padding: 6px 8px;
+}
+
 .gt-pill {
   display: inline-flex;
   align-items: center;

@@ -63,7 +63,7 @@ module.exports = async (req, res) => {
         if (roleRows.length) {
           const ids = roleRows.map((r) => r.workspace_id);
           workspaces = await sql`
-            SELECT id, location_id, name, created_by, created_at, updated_at
+            SELECT id, location_id, name, icon_url, created_by, created_at, updated_at
             FROM workspaces
             WHERE location_id = ${locationId}
               AND archived_at IS NULL
@@ -75,7 +75,7 @@ module.exports = async (req, res) => {
 
       if (!workspaces) {
         workspaces = await sql`
-          SELECT id, location_id, name, created_by, created_at, updated_at
+          SELECT id, location_id, name, icon_url, created_by, created_at, updated_at
           FROM workspaces
           WHERE location_id = ${locationId} AND archived_at IS NULL
           ORDER BY created_at ASC
@@ -104,9 +104,9 @@ module.exports = async (req, res) => {
 
     try {
       const rows = await sql`
-        INSERT INTO workspaces (location_id, name, created_by)
-        VALUES (${locationId}, ${name}, ${createdBy || null})
-        RETURNING id, location_id, name, created_by, created_at, updated_at
+          INSERT INTO workspaces (location_id, name, icon_url, created_by)
+          VALUES (${locationId}, ${name}, ${body.iconUrl || null}, ${createdBy || null})
+        RETURNING id, location_id, name, icon_url, created_by, created_at, updated_at
       `;
       const workspace = rows[0];
       return res.status(201).json({ ok: true, workspace });
@@ -129,15 +129,18 @@ module.exports = async (req, res) => {
       return res.status(400).json({ ok: false, error: err.message });
     }
 
-    const { name } = body;
-    if (!name) {
-      return res.status(400).json({ ok: false, error: "name is required" });
+      const { name, iconUrl } = body;
+      if (!name && typeof iconUrl === "undefined") {
+        return res.status(400).json({ ok: false, error: "name or iconUrl is required" });
     }
 
     try {
       const rows = await sql`
         UPDATE workspaces
-        SET name = ${name}, updated_at = now()
+          SET
+            name = COALESCE(${name}, name),
+            icon_url = COALESCE(${iconUrl}, icon_url),
+            updated_at = now()
         WHERE id = ${id} AND archived_at IS NULL
         RETURNING id, location_id, name, created_by, created_at, updated_at
       `;

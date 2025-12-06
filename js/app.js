@@ -501,7 +501,11 @@
         (ws) => `
           <div class="gt-workspace-picker-item" data-id="${ws.id}">
             <div class="gt-workspace-picker-meta">
-              <div class="gt-workspace-picker-icon">📋</div>
+              <div class="gt-workspace-picker-icon">${
+                ws.icon_url
+                  ? `<img src="${ws.icon_url}" alt="icon" />`
+                  : "📋"
+              }</div>
               <div>
                 <div class="gt-workspace-picker-name">${ws.name}</div>
                 <div class="gt-workspace-picker-sub">Workspace</div>
@@ -639,6 +643,8 @@
     const roles = APP_STATE.workspaceRoles[ws.id] || {};
     const staff = APP_STATE.staff || [];
 
+    const iconUrl = ws.icon_url || "";
+
     const rows = staff.map((u) => {
       const current = roles[u.email.toLowerCase()] || "none";
       return `
@@ -668,6 +674,14 @@
           <button class="gt-button" id="gt-modal-close">✕</button>
         </div>
         <div class="gt-modal-section">
+          <div class="gt-modal-label">Icon</div>
+          <div class="gt-modal-help">Paste a favicon or image URL to show in the chooser.</div>
+          <div class="gt-role-form">
+            <input id="gt-icon-url" class="gt-input" type="url" placeholder="https://.../favicon.ico" value="${iconUrl}" />
+            <button id="gt-icon-save" class="gt-button gt-button-primary">Save Icon</button>
+          </div>
+        </div>
+        <div class="gt-modal-section">
           <div class="gt-modal-label">Roles & access</div>
           <div class="gt-modal-help">Right-click a workspace to open settings. Changes save instantly.</div>
           <div class="gt-role-list">${rows.join("") || "<div class='gt-muted'>No staff loaded</div>"}</div>
@@ -690,6 +704,38 @@
         renderWorkspaceSettingsContent(ws);
       });
     });
+
+    const iconSave = document.getElementById("gt-icon-save");
+    const iconInput = document.getElementById("gt-icon-url");
+    if (iconSave && iconInput) {
+      iconSave.onclick = async () => {
+        const url = iconInput.value.trim() || null;
+        try {
+          const resp = await fetch(`${WORKSPACES_API}/${ws.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ iconUrl: url }),
+          });
+          const data = await resp.json();
+          if (!resp.ok || !data.ok) {
+            alert("Failed to save icon");
+            console.warn("[app] save icon failed", resp.status, data);
+            return;
+          }
+          // update local workspace list
+          APP_STATE.workspaces = APP_STATE.workspaces.map((w) =>
+            w.id === ws.id ? { ...w, icon_url: url } : w
+          );
+          renderWorkspaceSettingsContent({ ...ws, icon_url: url });
+          if (UI_STATE.chooserOpen) {
+            openWorkspaceChooser();
+          }
+        } catch (err) {
+          console.warn("[app] save icon error", err);
+          alert("Unexpected error saving icon");
+        }
+      };
+    }
   }
 
   async function saveWorkspaceRole(workspaceId, email, role) {

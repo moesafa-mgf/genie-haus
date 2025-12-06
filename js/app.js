@@ -872,7 +872,8 @@
       return data.workspace;
     } catch (err) {
       console.warn("[app] patch workspace error", err);
-      alert("Unexpected error updating workspace");
+      const msg = err?.message || String(err) || "Unknown error";
+      alert(`Unexpected error updating workspace: ${msg}`);
       return null;
     }
   }

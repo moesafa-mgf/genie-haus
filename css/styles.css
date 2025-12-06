@@ -1123,6 +1123,25 @@ a:hover {
   background: #ffffff;
 }
 
+.gt-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #eef2ff;
+  border: 1px solid #e0e7ff;
+  color: #4338ca;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.gt-pill-soft {
+  background: #f3f4f6;
+  border-color: #e5e7eb;
+  color: #4b5563;
+}
+
 .gt-cell-editable {
   cursor: text;
 }

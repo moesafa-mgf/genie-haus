@@ -57,27 +57,17 @@
         </header>
 
         <main class="gt-main">
-          <!-- Workspace panel (left) -->
-          <section class="gt-panel">
-            <div class="gt-panel-header">
-              <h2>Workspace</h2>
-              <button id="gt-create-workspace" class="gt-button gt-button-primary" style="display:none;">
-                + New Workspace
-              </button>
-            </div>
-            <div class="gt-panel-body">
-              <div class="gt-workspace-list-header">Right-click a workspace for settings</div>
-              <div id="gt-workspace-list" class="gt-workspace-list"></div>
-            </div>
-          </section>
-
-          <!-- Tasks panel (right) -->
           <section class="gt-panel">
             <div class="gt-panel-header">
               <h2>Tasks</h2>
-              <button id="gt-add-task" class="gt-button gt-button-primary">
-                + New Task
-              </button>
+              <div class="gt-panel-header-actions">
+                <button id="gt-create-workspace" class="gt-button gt-button-primary" style="display:none;">
+                  + New Workspace
+                </button>
+                <button id="gt-add-task" class="gt-button gt-button-primary">
+                  + New Task
+                </button>
+              </div>
             </div>
             <div class="gt-panel-body">
               <!-- Shown when no workspace is selected -->
@@ -87,7 +77,7 @@
                     Select a workspace to get started
                   </div>
                   <div style="font-size:12px; color:#6b7280;">
-                    Choose a workspace on the left to load its tables, board, and dashboard.
+                    Use the chooser to pick a workspace before editing tasks.
                   </div>
                 </div>
               </div>
@@ -503,44 +493,42 @@
     UI_STATE.chooserOpen = true;
 
     const canCreate = getCurrentUserRole() === "admin";
-    const filtered = isMemberRole()
-      ? APP_STATE.workspaces
-      : APP_STATE.workspaces;
+    const filtered = APP_STATE.workspaces;
 
     const items = filtered
       .map(
         (ws) => `
           <div class="gt-workspace-picker-item" data-id="${ws.id}">
-            <div class="gt-workspace-picker-name">${ws.name}</div>
+            <div class="gt-workspace-picker-meta">
+              <div class="gt-workspace-picker-icon">📋</div>
+              <div>
+                <div class="gt-workspace-picker-name">${ws.name}</div>
+                <div class="gt-workspace-picker-sub">Workspace</div>
+              </div>
+              ${canCreate ? '<button class="gt-workspace-picker-gear" title="Settings">⚙</button>' : ""}
+            </div>
           </div>
         `
       )
       .join("") || "<div class='gt-muted'>No workspaces</div>";
 
     modal.innerHTML = `
-      <div class="gt-modal-backdrop" data-close="1"></div>
-      <div class="gt-modal-card">
+      <div class="gt-modal-backdrop"></div>
+      <div class="gt-modal-card gt-modal-card-large">
         <div class="gt-modal-header">
           <div>
             <div class="gt-modal-title">Select a workspace</div>
-            <div class="gt-modal-sub">Choose to continue</div>
+            <div class="gt-modal-sub">Workspaces available to you</div>
           </div>
-          <button class="gt-button" id="gt-chooser-close">✕</button>
         </div>
         <div class="gt-workspace-picker-list">${items}</div>
         ${canCreate
-          ? '<button id="gt-chooser-create" class="gt-button gt-button-primary" style="margin-top:10px;">+ New Workspace</button>'
+          ? '<button id="gt-chooser-create" class="gt-button gt-button-primary" style="margin-top:12px;">+ New Workspace</button>'
           : ""}
       </div>
     `;
 
     modal.classList.remove("is-hidden");
-
-    modal.querySelectorAll("[data-close]").forEach((b) => {
-      b.onclick = closeWorkspaceChooser;
-    });
-    const closeBtn = document.getElementById("gt-chooser-close");
-    if (closeBtn) closeBtn.onclick = closeWorkspaceChooser;
 
     modal.querySelectorAll(".gt-workspace-picker-item").forEach((el) => {
       el.onclick = () => {
@@ -548,6 +536,14 @@
         selectWorkspace(id);
         closeWorkspaceChooser();
       };
+      const gear = el.querySelector(".gt-workspace-picker-gear");
+      if (gear) {
+        gear.onclick = (e) => {
+          e.stopPropagation();
+          const id = el.getAttribute("data-id");
+          openWorkspaceSettings(id);
+        };
+      }
     });
 
     const createBtn = document.getElementById("gt-chooser-create");
@@ -604,32 +600,7 @@
   }
 
   function renderWorkspaceSelect() {
-    const list = document.getElementById("gt-workspace-list");
-    if (!list) return;
-
-    const current = APP_STATE.currentWorkspaceId || "";
-    list.innerHTML = "";
-
-    if (!APP_STATE.workspaces.length) {
-      list.innerHTML = "<div class=\"gt-muted\">No workspaces yet</div>";
-      return;
-    }
-
-    APP_STATE.workspaces.forEach((ws) => {
-      const item = document.createElement("div");
-      item.className = "gt-workspace-item" + (ws.id === current ? " is-active" : "");
-      item.textContent = ws.name;
-      item.title = "Right-click for settings";
-      item.onclick = () => {
-        selectWorkspace(ws.id);
-        closeWorkspaceChooser();
-      };
-      item.oncontextmenu = (e) => {
-        e.preventDefault();
-        openWorkspaceSettings(ws.id);
-      };
-      list.appendChild(item);
-    });
+    // no-op stub (sidebar removed)
   }
 
   function selectWorkspace(workspaceId) {
@@ -787,7 +758,6 @@
 
     renderWorkspaceSettingsContent(ws);
     modal.classList.remove("is-hidden");
-    closeWorkspaceChooser();
   }
 
   function closeWorkspaceSettings() {

@@ -81,6 +81,8 @@
 
   let draggedTaskId = null;
   let openColumnMenuEl = null;
+  let draggingColumnId = null;
+  let contextMenuEl = null;
 
   // -------- 0. Build layout into #app --------
   function buildLayout() {
@@ -1569,6 +1571,100 @@
     openColumnMenuEl = null;
   }
 
+  function reorderColumns(sourceId, targetId) {
+    if (!sourceId || !targetId || sourceId === targetId) return;
+    const cols = (APP_STATE.columns && APP_STATE.columns.length)
+      ? APP_STATE.columns.slice()
+      : DEFAULT_COLUMNS.slice();
+    const fromIdx = cols.findIndex((c) => c.id === sourceId);
+    const toIdx = cols.findIndex((c) => c.id === targetId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const [moved] = cols.splice(fromIdx, 1);
+    cols.splice(toIdx, 0, moved);
+    APP_STATE.columns = cols;
+    persistColumns();
+  }
+
+  function attachColumnDragHandlers(th, colId) {
+    if (!th) return;
+    th.draggable = true;
+    th.addEventListener("dragstart", (e) => {
+      draggingColumnId = colId;
+      th.classList.add("is-dragging");
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", colId);
+      }
+    });
+    th.addEventListener("dragover", (e) => {
+      if (!draggingColumnId || draggingColumnId === colId) return;
+      e.preventDefault();
+      th.classList.add("is-drag-over");
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+    });
+    th.addEventListener("dragleave", () => {
+      th.classList.remove("is-drag-over");
+    });
+    th.addEventListener("drop", (e) => {
+      e.preventDefault();
+      th.classList.remove("is-drag-over");
+      const source = draggingColumnId;
+      draggingColumnId = null;
+      reorderColumns(source, colId);
+    });
+    th.addEventListener("dragend", () => {
+      draggingColumnId = null;
+      th.classList.remove("is-dragging", "is-drag-over");
+      document.querySelectorAll(".gt-col-header.is-drag-over").forEach((el) => el.classList.remove("is-drag-over"));
+    });
+  }
+
+  function closeContextMenu() {
+    if (contextMenuEl && contextMenuEl.parentElement) {
+      contextMenuEl.parentElement.removeChild(contextMenuEl);
+    }
+    contextMenuEl = null;
+  }
+
+  function openRowContextMenu(task, event) {
+    if (!task) return;
+    closeContextMenu();
+    const menu = document.createElement("div");
+    menu.className = "gt-context-menu";
+    menu.innerHTML = `
+      <button class="gt-context-item" data-action="open">Open record</button>
+      <button class="gt-context-item" data-action="duplicate">Duplicate record</button>
+      <button class="gt-context-item" data-action="assign-self">Assign to me</button>
+    `;
+
+    const { clientX: x, clientY: y } = event;
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+
+    menu.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-action]");
+      if (!btn) return;
+      const action = btn.getAttribute("data-action");
+      switch (action) {
+        case "open":
+          openDetailDrawer(task.id);
+          break;
+        case "duplicate":
+          duplicateTask(task.id);
+          break;
+        case "assign-self":
+          assignTaskToSelf(task.id);
+          break;
+        default:
+          break;
+      }
+      closeContextMenu();
+    });
+
+    document.body.appendChild(menu);
+    contextMenuEl = menu;
+  }
+
   function duplicateFieldColumn(colId) {
     const cols = APP_STATE.columns || [];
     const idx = cols.findIndex((c) => c.id === colId);
@@ -1869,10 +1965,20 @@
   // Assignee filter removed from UI for now; filtering uses full list
 
   document.addEventListener("click", (e) => {
-    if (!openColumnMenuEl) return;
-    const isToggle = e.target.closest && e.target.closest(".gt-col-menu-trigger");
-    if (isToggle) return;
-    if (!openColumnMenuEl.contains(e.target)) {
+    if (openColumnMenuEl) {
+      const isToggle = e.target.closest && e.target.closest(".gt-col-menu-trigger");
+      if (!isToggle && !openColumnMenuEl.contains(e.target)) {
+        closeColumnMenu();
+      }
+    }
+    if (contextMenuEl && !contextMenuEl.contains(e.target)) {
+      closeContextMenu();
+    }
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      closeContextMenu();
       closeColumnMenu();
     }
   });
@@ -1997,10 +2103,11 @@
     theadRow.innerHTML = "";
     columns.forEach((c) => {
       const th = document.createElement("th");
-      th.className = "gt-col-header";
+      th.className = "gt-col-header is-draggable";
 
       const trigger = document.createElement("button");
       trigger.className = "gt-col-menu-trigger";
+      trigger.draggable = false;
       trigger.innerHTML = `<span class="gt-col-title">${c.label}</span><span class="gt-col-caret">▾</span>`;
       trigger.onclick = (e) => {
         e.stopPropagation();
@@ -2008,11 +2115,14 @@
       };
 
       th.appendChild(trigger);
+      attachColumnDragHandlers(th, c.id);
       theadRow.appendChild(th);
     });
 
-    const padTh = document.createElement("th");
-    theadRow.appendChild(padTh);
+    const actionsTh = document.createElement("th");
+    actionsTh.className = "gt-col-header gt-col-actions";
+    actionsTh.textContent = "";
+    theadRow.appendChild(actionsTh);
 
     tbody.innerHTML = "";
 
@@ -2065,6 +2175,17 @@
       return opts.map((o) => `<option value="${o.id}">${o.label}</option>`).join("");
     };
 
+    const enableCellQuickFocus = (td, control) => {
+      if (!td || !control) return;
+      td.classList.add("gt-cell-editable");
+      td.addEventListener("click", (e) => {
+        if (e.target === td) {
+          control.focus();
+          if (typeof control.select === "function") control.select();
+        }
+      });
+    };
+
     const makeRow = (task) => {
       const tr = document.createElement("tr");
 
@@ -2094,6 +2215,7 @@
               }
             };
             td.appendChild(inp);
+            enableCellQuickFocus(td, inp);
             break;
           }
           case "long_text": {
@@ -2106,6 +2228,7 @@
               touch(task);
             };
             td.appendChild(ta);
+            enableCellQuickFocus(td, ta);
             break;
           }
           case "checkbox": {
@@ -2118,6 +2241,7 @@
               touch(task);
             };
             td.appendChild(cb);
+            enableCellQuickFocus(td, cb);
             break;
           }
           case "single_select": {
@@ -2132,6 +2256,7 @@
               renderBoardView();
             };
             td.appendChild(sel);
+            enableCellQuickFocus(td, sel);
             break;
           }
           case "multi_select": {
@@ -2150,6 +2275,7 @@
               touch(task);
             };
             td.appendChild(sel);
+            enableCellQuickFocus(td, sel);
             break;
           }
           case "user": {
@@ -2172,6 +2298,7 @@
               touch(task);
             };
             td.appendChild(sel);
+            enableCellQuickFocus(td, sel);
             break;
           }
           case "date": {
@@ -2184,6 +2311,7 @@
               touch(task);
             };
             td.appendChild(inp);
+            enableCellQuickFocus(td, inp);
             break;
           }
           case "number": {
@@ -2197,6 +2325,7 @@
               touch(task);
             };
             td.appendChild(inp);
+            enableCellQuickFocus(td, inp);
             break;
           }
           case "attachment": {
@@ -2266,31 +2395,28 @@
               touch(task);
             };
             td.appendChild(inp);
+            enableCellQuickFocus(td, inp);
           }
         }
 
         tr.appendChild(td);
       });
 
-      const tdDel = document.createElement("td");
-      const btn = document.createElement("button");
-      btn.className = "gt-button gt-button-danger";
-      btn.textContent = "Delete";
-      btn.onclick = () => {
-        APP_STATE.tasks = APP_STATE.tasks.filter((t) => t.id !== task.id);
-        schedulePush();
-        renderTasks();
-        renderBoardView();
-        if (APP_STATE.currentView === "dashboard" && canViewDashboard()) {
-          renderDashboardView();
-        }
-      };
-      tdDel.appendChild(btn);
-      tr.appendChild(tdDel);
-
-      tr.addEventListener("click", (e) => {
-        if (e.target.closest("input,select,textarea,button,a")) return;
+      const tdActions = document.createElement("td");
+      tdActions.className = "gt-row-actions";
+      const openBtn = document.createElement("button");
+      openBtn.className = "gt-row-expand";
+      openBtn.textContent = "Open";
+      openBtn.onclick = (e) => {
+        e.stopPropagation();
         openDetailDrawer(task.id);
+      };
+      tdActions.appendChild(openBtn);
+      tr.appendChild(tdActions);
+
+      tr.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        openRowContextMenu(task, e);
       });
 
       tbody.appendChild(tr);
@@ -2910,6 +3036,38 @@
     }
     task.updatedAt = new Date().toISOString();
     schedulePush();
+  }
+
+  function duplicateTask(taskId) {
+    const original = APP_STATE.tasks.find((t) => t.id === taskId);
+    if (!original) return;
+    const copy = JSON.parse(JSON.stringify(original));
+    copy.id = `t_${Math.random().toString(36).slice(2)}`;
+    copy.title = `${original.title || "Untitled"} Copy`;
+    copy.createdAt = new Date().toISOString();
+    copy.updatedAt = copy.createdAt;
+    copy.completedAt = null;
+    APP_STATE.tasks.push(copy);
+    touch(copy);
+    renderTasks();
+    renderBoardView();
+  }
+
+  function assignTaskToSelf(taskId) {
+    const me = APP_STATE.runtime.email || null;
+    if (!me) {
+      showToast("No user email found", "error");
+      return;
+    }
+    const task = APP_STATE.tasks.find((t) => t.id === taskId);
+    if (!task) return;
+    const prev = task.assigneeEmail || null;
+    task.assigneeEmail = me;
+    trackChange(task, "assignee", prev, me);
+    notifyAssignment(task, me);
+    touch(task);
+    renderTasks();
+    renderBoardView();
   }
 
   function addTask() {

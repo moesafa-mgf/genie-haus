@@ -972,6 +972,28 @@ a:hover {
   font-size: 13px;
 }
 
+.gt-col-header {
+  position: relative;
+}
+
+.gt-col-header.is-draggable {
+  cursor: grab;
+  user-select: none;
+}
+
+.gt-col-header.is-dragging {
+  opacity: 0.75;
+}
+
+.gt-col-header.is-drag-over::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 1px dashed #a5b4fc;
+  border-radius: 8px;
+  pointer-events: none;
+}
+
 .gt-table thead {
   position: sticky;
   top: 0;
@@ -999,6 +1021,11 @@ a:hover {
   letter-spacing: 0.06em;
   color: #6b7280;
   background: #f9fafb;
+}
+
+.gt-col-actions {
+  width: 70px;
+  text-align: center;
 }
 
 .gt-table tbody tr:nth-child(even) td {
@@ -1094,6 +1121,64 @@ a:hover {
 .gt-table select:focus {
   border-color: var(--gt-accent);
   background: #ffffff;
+}
+
+.gt-cell-editable {
+  cursor: text;
+}
+
+.gt-row-actions {
+  text-align: center;
+  background: #f9fafb;
+}
+
+.gt-row-expand {
+  border: 1px solid var(--gt-border-subtle);
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.gt-row-expand:hover {
+  border-color: var(--gt-accent);
+  color: var(--gt-accent);
+}
+
+.gt-row-expand:focus-visible {
+  outline: 2px solid var(--gt-accent);
+  outline-offset: 2px;
+}
+
+.gt-context-menu {
+  position: fixed;
+  z-index: 9999;
+  min-width: 160px;
+  background: #ffffff;
+  border: 1px solid var(--gt-border-subtle);
+  border-radius: 10px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.15);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gt-context-item {
+  border: none;
+  background: transparent;
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 13px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.gt-context-item:hover {
+  background: #eef2ff;
+  color: var(--gt-accent-strong);
 }
 
 .gt-tiny {

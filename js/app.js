@@ -68,6 +68,7 @@
   };
 
   let draggedTaskId = null;
+  let openColumnMenuEl = null;
 
   // -------- 0. Build layout into #app --------
   function buildLayout() {
@@ -98,10 +99,6 @@
             <div class="gt-panel-header">
               <h2>Tasks</h2>
               <div class="gt-panel-header-actions">
-                <button id="gt-create-workspace" class="gt-button gt-button-primary" style="display:none;">
-                  + New Workspace
-                </button>
-                <button id="gt-manage-fields" class="gt-button">Fields</button>
                 <button id="gt-add-task" class="gt-button gt-button-primary">
                   + New Task
                 </button>
@@ -166,6 +163,7 @@
         <div id="gt-workspace-settings-modal" class="gt-modal is-hidden"></div>
         <div id="gt-workspace-chooser-page" class="gt-chooser-page is-hidden"></div>
         <div id="gt-fields-modal" class="gt-modal is-hidden"></div>
+        <div id="gt-field-editor-modal" class="gt-modal is-hidden"></div>
         <div id="gt-toast-stack" class="gt-toast-stack"></div>
       </div>
     `;
@@ -696,11 +694,7 @@
   }
 
   function updateWorkspaceActionsVisibility() {
-    const createBtn = document.getElementById("gt-create-workspace");
     const switchBtn = document.getElementById("gt-switch-workspace");
-    if (createBtn) {
-      createBtn.style.display = getCurrentUserRole() === "admin" ? "inline-flex" : "none";
-    }
     if (switchBtn) {
       switchBtn.style.display = APP_STATE.workspaces.length ? "inline-flex" : "none";
     }
@@ -1221,8 +1215,339 @@
     });
   }
 
+  function isSelectType(type) {
+    return type === "single_select" || type === "multi_select";
+  }
+
+  function closeColumnMenu() {
+    if (openColumnMenuEl && openColumnMenuEl.parentElement) {
+      openColumnMenuEl.parentElement.classList.remove("has-menu-open");
+      openColumnMenuEl.parentElement.removeChild(openColumnMenuEl);
+    }
+    openColumnMenuEl = null;
+  }
+
+  function duplicateFieldColumn(colId) {
+    const cols = APP_STATE.columns || [];
+    const idx = cols.findIndex((c) => c.id === colId);
+    if (idx === -1) return;
+    const src = cols[idx];
+    const copy = {
+      ...src,
+      id: `fld_${Math.random().toString(36).slice(2, 7)}`,
+      label: `${src.label} Copy`,
+      locked: false,
+    };
+    if (Array.isArray(src.options)) {
+      copy.options = src.options.map((o) => ({ ...o, id: `opt_${Math.random().toString(36).slice(2, 6)}` }));
+    }
+    const next = cols.slice();
+    next.splice(idx + 1, 0, copy);
+    APP_STATE.columns = next;
+    persistColumns();
+    showToast("Field duplicated", "success");
+  }
+
+  function insertFieldRelative(colId, direction) {
+    const cols = APP_STATE.columns || [];
+    const idx = cols.findIndex((c) => c.id === colId);
+    if (idx === -1) return;
+    const base = "New Field";
+    let suffix = 1;
+    let label = base;
+    while (cols.some((c) => c.label === label)) {
+      suffix += 1;
+      label = `${base} ${suffix}`;
+    }
+    const newCol = {
+      id: `fld_${Math.random().toString(36).slice(2, 7)}`,
+      label,
+      type: "text",
+    };
+    const next = cols.slice();
+    const targetIndex = direction === "left" ? idx : idx + 1;
+    next.splice(targetIndex, 0, newCol);
+    APP_STATE.columns = next;
+    persistColumns();
+    showToast("Field inserted", "success");
+  }
+
+  function openColumnMenu(col, anchor) {
+    closeColumnMenu();
+    if (!anchor) return;
+    const menu = document.createElement("div");
+    menu.className = "gt-col-menu";
+    const deleteDisabled = col.locked ? "disabled" : "";
+    menu.innerHTML = `
+      <button class="gt-col-menu-item" data-action="edit">Edit field</button>
+      <button class="gt-col-menu-item" data-action="duplicate">Duplicate field</button>
+      <button class="gt-col-menu-item" data-action="insert-left">Insert left</button>
+      <button class="gt-col-menu-item" data-action="insert-right">Insert right</button>
+      <button class="gt-col-menu-item ${col.locked ? "is-disabled" : "is-danger"}" data-action="delete" ${deleteDisabled}>${col.locked ? "Locked" : "Delete field"}</button>
+    `;
+
+    menu.onclick = (e) => {
+      const btn = e.target.closest(".gt-col-menu-item");
+      if (!btn || btn.disabled) return;
+      const action = btn.getAttribute("data-action");
+      switch (action) {
+        case "edit":
+          openFieldEditModal(col.id);
+          break;
+        case "duplicate":
+          duplicateFieldColumn(col.id);
+          closeColumnMenu();
+          break;
+        case "insert-left":
+          insertFieldRelative(col.id, "left");
+          closeColumnMenu();
+          break;
+        case "insert-right":
+          insertFieldRelative(col.id, "right");
+          closeColumnMenu();
+          break;
+        case "delete":
+          deleteField(col.id);
+          closeColumnMenu();
+          break;
+        default:
+          break;
+      }
+    };
+
+    anchor.classList.add("has-menu-open");
+    anchor.appendChild(menu);
+    openColumnMenuEl = menu;
+  }
+
+  function closeFieldEditModal() {
+    const modal = document.getElementById("gt-field-editor-modal");
+    if (modal) {
+      modal.classList.add("is-hidden");
+      modal.innerHTML = "";
+    }
+  }
+
+  function openFieldEditModal(colId) {
+    const modal = document.getElementById("gt-field-editor-modal");
+    if (!modal) return;
+    const col = (APP_STATE.columns || []).find((c) => c.id === colId);
+    if (!col) return;
+
+    const options = Array.isArray(col.options)
+      ? col.options.map((o) => ({ ...o }))
+      : [];
+    const isLocked = !!col.locked;
+
+    const typeOptions = FIELD_TYPES.map(
+      (t) => `<option value="${t.value}">${t.label}</option>`
+    ).join("");
+
+    modal.innerHTML = `
+      <div class="gt-modal-backdrop" data-close="1"></div>
+      <div class="gt-modal-card gt-modal-card-medium">
+        <div class="gt-modal-header">
+          <div>
+            <div class="gt-modal-title">Edit field</div>
+            <div class="gt-modal-sub">${col.label}</div>
+          </div>
+          <button class="gt-button" id="gt-field-edit-close">✕</button>
+        </div>
+
+        <div class="gt-modal-section gt-edit-form">
+          <label class="gt-modal-label">Field name</label>
+          <input id="gt-edit-name" class="gt-input" type="text" value="${col.label}" ${isLocked ? "disabled" : ""} />
+
+          <label class="gt-modal-label">Type</label>
+          <select id="gt-edit-type" class="gt-select" ${isLocked ? "disabled" : ""}>${typeOptions}</select>
+
+          <div class="gt-edit-options-block" id="gt-edit-options-block" style="display:${isSelectType(col.type) ? "flex" : "none"};">
+            <div class="gt-modal-label">Options</div>
+            <div id="gt-edit-options-list" class="gt-option-list"></div>
+            <div class="gt-option-actions">
+              <button class="gt-button gt-button-small" id="gt-option-add">+ Add option</button>
+              <button class="gt-button gt-button-small" id="gt-option-sort">Alphabetize</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="gt-edit-actions">
+          <button class="gt-button" id="gt-field-edit-cancel">Cancel</button>
+          <button class="gt-button gt-button-primary" id="gt-field-edit-save">Save</button>
+        </div>
+      </div>
+    `;
+
+    modal.classList.remove("is-hidden");
+
+    const nameInput = document.getElementById("gt-edit-name");
+    const typeSelect = document.getElementById("gt-edit-type");
+    const optionsList = document.getElementById("gt-edit-options-list");
+    const optionsBlock = document.getElementById("gt-edit-options-block");
+    const addBtn = document.getElementById("gt-option-add");
+    const sortBtn = document.getElementById("gt-option-sort");
+    const closeBtn = document.getElementById("gt-field-edit-close");
+    const cancelBtn = document.getElementById("gt-field-edit-cancel");
+    const saveBtn = document.getElementById("gt-field-edit-save");
+
+    if (typeSelect) {
+      typeSelect.value = col.type;
+    }
+
+    const renderOptionRows = () => {
+      if (!optionsList) return;
+      optionsList.innerHTML = options
+        .map((opt, idx) => {
+          return `
+            <div class="gt-option-row" data-idx="${idx}">
+              <input class="gt-input gt-option-label" type="text" value="${opt.label || ""}" />
+              <select class="gt-select gt-option-color">
+                ${OPTION_COLORS.map((c) => `<option value="${c}" ${opt.color === c ? "selected" : ""}>${c}</option>`).join("")}
+              </select>
+              <button class="gt-button gt-button-small gt-button-danger gt-option-remove">Remove</button>
+            </div>
+          `;
+        })
+        .join("");
+
+      optionsList.querySelectorAll(".gt-option-row").forEach((row) => {
+        const idx = Number(row.getAttribute("data-idx"));
+        const labelInput = row.querySelector(".gt-option-label");
+        const colorSelect = row.querySelector(".gt-option-color");
+        const removeBtn = row.querySelector(".gt-option-remove");
+        if (labelInput) {
+          labelInput.oninput = () => {
+            options[idx].label = labelInput.value;
+          };
+          labelInput.disabled = isLocked;
+        }
+        if (colorSelect) {
+          colorSelect.onchange = () => {
+            options[idx].color = colorSelect.value;
+          };
+          colorSelect.disabled = isLocked;
+        }
+        if (removeBtn) {
+          removeBtn.onclick = () => {
+            if (isLocked) return;
+            options.splice(idx, 1);
+            renderOptionRows();
+          };
+          removeBtn.disabled = isLocked;
+        }
+      });
+    };
+
+    const ensureOptions = () => {
+      if (!isSelectType(typeSelect?.value)) return;
+      if (!options.length) {
+        options.push(
+          { id: `opt_${Math.random().toString(36).slice(2, 6)}`, label: "Option 1", color: "blue" },
+          { id: `opt_${Math.random().toString(36).slice(2, 6)}`, label: "Option 2", color: "green" }
+        );
+      }
+    };
+
+    ensureOptions();
+    renderOptionRows();
+
+    const syncOptionsVisibility = () => {
+      if (!optionsBlock || !typeSelect) return;
+      const show = isSelectType(typeSelect.value);
+      optionsBlock.style.display = show ? "flex" : "none";
+      if (show && !options.length) {
+        ensureOptions();
+        renderOptionRows();
+      }
+    };
+
+    if (typeSelect) {
+      typeSelect.onchange = () => {
+        syncOptionsVisibility();
+      };
+    }
+
+    if (addBtn) {
+      addBtn.onclick = () => {
+        if (isLocked) return;
+        options.push({
+          id: `opt_${Math.random().toString(36).slice(2, 6)}`,
+          label: `Option ${options.length + 1}`,
+          color: OPTION_COLORS[options.length % OPTION_COLORS.length],
+        });
+        renderOptionRows();
+      };
+      addBtn.disabled = isLocked;
+    }
+
+    if (sortBtn) {
+      sortBtn.onclick = () => {
+        if (isLocked) return;
+        options.sort((a, b) => (a.label || "").localeCompare(b.label || ""));
+        renderOptionRows();
+      };
+      sortBtn.disabled = isLocked;
+    }
+
+    const doClose = () => {
+      closeFieldEditModal();
+      closeColumnMenu();
+    };
+
+    if (closeBtn) closeBtn.onclick = doClose;
+    if (cancelBtn) cancelBtn.onclick = doClose;
+
+    modal.querySelectorAll(".gt-modal-backdrop").forEach((b) => {
+      b.onclick = doClose;
+    });
+
+    if (saveBtn) {
+      saveBtn.onclick = () => {
+        if (isLocked) {
+          showToast("Locked field cannot be edited", "error");
+          doClose();
+          return;
+        }
+        const name = (nameInput?.value || "").trim();
+        if (name) {
+          col.label = name;
+        }
+        const selectedType = typeSelect ? typeSelect.value : col.type;
+        col.type = selectedType;
+
+        if (isSelectType(col.type)) {
+          const cleaned = options
+            .map((o, idx) => ({
+              id: o.id || `opt_${idx}_${Math.random().toString(36).slice(2, 5)}`,
+              label: (o.label || "").trim(),
+              color: o.color || OPTION_COLORS[idx % OPTION_COLORS.length],
+            }))
+            .filter((o) => o.label);
+          col.options = cleaned.length ? cleaned : undefined;
+        } else {
+          delete col.options;
+        }
+
+        persistColumns();
+        renderFieldsModal();
+        closeFieldEditModal();
+        closeColumnMenu();
+        showToast("Field updated", "success");
+      };
+    }
+  }
+
 
   // Assignee filter removed from UI for now; filtering uses full list
+
+  document.addEventListener("click", (e) => {
+    if (!openColumnMenuEl) return;
+    const isToggle = e.target.closest && e.target.closest(".gt-col-menu-btn");
+    if (isToggle) return;
+    if (!openColumnMenuEl.contains(e.target)) {
+      closeColumnMenu();
+    }
+  });
 
   function getFilteredTasks() {
     const assignee = APP_STATE.filters.assigneeEmail;
@@ -1259,12 +1584,38 @@
     const theadRow = document.querySelector("#gt-view-table thead tr");
     if (!tbody || !theadRow) return;
 
+    closeColumnMenu();
+
     const columns = (APP_STATE.columns && APP_STATE.columns.length)
       ? APP_STATE.columns
       : DEFAULT_COLUMNS;
 
     // Build header
-    theadRow.innerHTML = columns.map((c) => `<th>${c.label}</th>`).join("") + `<th></th>`;
+    theadRow.innerHTML = "";
+    columns.forEach((c) => {
+      const th = document.createElement("th");
+      th.className = "gt-col-header";
+
+      const title = document.createElement("span");
+      title.className = "gt-col-title";
+      title.textContent = c.label;
+      th.appendChild(title);
+
+      const menuBtn = document.createElement("button");
+      menuBtn.className = "gt-col-menu-btn";
+      menuBtn.innerHTML = "⋯";
+      menuBtn.title = "Column menu";
+      menuBtn.onclick = (e) => {
+        e.stopPropagation();
+        openColumnMenu(c, th);
+      };
+      th.appendChild(menuBtn);
+
+      theadRow.appendChild(th);
+    });
+
+    const padTh = document.createElement("th");
+    theadRow.appendChild(padTh);
 
     tbody.innerHTML = "";
 
@@ -1800,17 +2151,6 @@
 
     const addBtn = document.getElementById("gt-add-task");
     if (addBtn) addBtn.onclick = addTask;
-
-    const createBtn = document.getElementById("gt-create-workspace");
-    if (createBtn) {
-      createBtn.onclick = () => {
-        if (getCurrentUserRole() !== "admin") return;
-        createWorkspaceFlow();
-      };
-    }
-
-    const fieldsBtn = document.getElementById("gt-manage-fields");
-    if (fieldsBtn) fieldsBtn.onclick = openFieldsModal;
 
     const switchBtn = document.getElementById("gt-switch-workspace");
     if (switchBtn) {

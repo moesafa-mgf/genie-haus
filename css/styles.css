@@ -591,6 +591,10 @@ body {
 }
 
 .gt-modal-label {
+
+.gt-modal-card-medium {
+  width: min(560px, 92vw);
+}
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -685,6 +689,45 @@ body {
   gap: 6px;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.gt-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gt-edit-options-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.gt-option-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gt-option-row {
+  display: grid;
+  grid-template-columns: 1fr 120px auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.gt-option-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.gt-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 /* Roles panel */
@@ -805,6 +848,77 @@ body {
   border-bottom: 1px solid #e5e7eb;
   border-right: 1px solid #e5e7eb;
   text-align: left;
+
+.gt-col-header {
+  position: relative;
+  padding-right: 26px;
+}
+
+.gt-col-title {
+  font-size: 12px;
+  text-transform: none;
+  color: #111827;
+  font-weight: 600;
+}
+
+.gt-col-menu-btn {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #6b7280;
+  padding: 2px 4px;
+  border-radius: 6px;
+}
+
+.gt-col-menu-btn:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.gt-col-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 180px;
+  background: #fff;
+  border: 1px solid var(--gt-border-subtle);
+  border-radius: 10px;
+  box-shadow: var(--gt-shadow-soft);
+  padding: 6px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gt-col-menu-item {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #111827;
+}
+
+.gt-col-menu-item:hover {
+  background: #f3f4f6;
+}
+
+.gt-col-menu-item.is-danger {
+  color: #b91c1c;
+}
+
+.gt-col-menu-item.is-disabled {
+  color: #9ca3af;
+  cursor: not-allowed;
+}
   white-space: nowrap;
 }
 

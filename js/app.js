@@ -56,23 +56,13 @@
           <section class="gt-panel">
             <div class="gt-panel-header">
               <h2>Workspace</h2>
-              <div class="gt-workspace-actions">
-                <select id="gt-workspace-select" class="gt-select">
-                  <option value="">Select workspace…</option>
-                </select>
-                <button id="gt-create-workspace" class="gt-button gt-button-primary" style="display:none;">
-                  + New Workspace
-                </button>
-              </div>
+              <button id="gt-create-workspace" class="gt-button gt-button-primary" style="display:none;">
+                + New Workspace
+              </button>
             </div>
             <div class="gt-panel-body">
-              <div class="gt-field-group">
-                <label>Assignee filter</label>
-                <select id="gt-assignee-filter" class="gt-select">
-                  <option value="">All assignees</option>
-                </select>
-              </div>
-              <div id="gt-roles-panel" class="gt-roles-panel"></div>
+              <div class="gt-workspace-list-header">Right-click a workspace for settings</div>
+              <div id="gt-workspace-list" class="gt-workspace-list"></div>
             </div>
           </section>
 
@@ -140,6 +130,7 @@
             </div>
           </section>
         </main>
+        <div id="gt-workspace-settings-modal" class="gt-modal is-hidden"></div>
       </div>
     `;
   }
@@ -191,7 +182,6 @@
     }
     if (Array.isArray(d.staff) && d.staff.length) {
       APP_STATE.staff = normalizeStaff(d.staff);
-      renderAssigneeFilter();
       renderTasks();
       renderBoardView();
       if (APP_STATE.currentView === "dashboard" && canViewDashboard()) {
@@ -289,7 +279,6 @@
       if (!canViewDashboard() && APP_STATE.currentView === "dashboard") {
         setActiveView("table");
       }
-      renderRolesPanel();
     } catch (err) {
       console.warn("[app] workspace roles fetch error", err);
     }
@@ -314,7 +303,6 @@
         return;
       }
       APP_STATE.staff = normalizeStaff(data.staff || []);
-      renderAssigneeFilter();
       renderTasks();
       renderBoardView();
       if (APP_STATE.currentView === "dashboard" && canViewDashboard()) {
@@ -529,27 +517,29 @@
   }
 
   function renderWorkspaceSelect() {
-    const sel = document.getElementById("gt-workspace-select");
-    if (!sel) return;
+    const list = document.getElementById("gt-workspace-list");
+    if (!list) return;
 
     const current = APP_STATE.currentWorkspaceId || "";
-    sel.innerHTML = "";
+    list.innerHTML = "";
 
-    const placeholder = document.createElement("option");
-    placeholder.value = "";
-    placeholder.textContent = APP_STATE.workspaces.length
-      ? "Select workspace…"
-      : "No workspaces yet";
-    sel.appendChild(placeholder);
+    if (!APP_STATE.workspaces.length) {
+      list.innerHTML = "<div class=\"gt-muted\">No workspaces yet</div>";
+      return;
+    }
 
     APP_STATE.workspaces.forEach((ws) => {
-      const opt = document.createElement("option");
-      opt.value = ws.id;
-      opt.textContent = ws.name;
-      sel.appendChild(opt);
+      const item = document.createElement("div");
+      item.className = "gt-workspace-item" + (ws.id === current ? " is-active" : "");
+      item.textContent = ws.name;
+      item.title = "Right-click for settings";
+      item.onclick = () => selectWorkspace(ws.id);
+      item.oncontextmenu = (e) => {
+        e.preventDefault();
+        openWorkspaceSettings(ws.id);
+      };
+      list.appendChild(item);
     });
-
-    sel.value = current;
   }
 
   function selectWorkspace(workspaceId) {
@@ -558,6 +548,7 @@
     renderViewTabs();
     updateWorkspaceActionsVisibility();
     updateWorkspaceShellVisibility();
+    renderWorkspaceSelect();
     renderTasks();
     renderBoardView();
     if (APP_STATE.currentView === "dashboard" && canViewDashboard()) {
@@ -575,121 +566,144 @@
     createBtn.style.display = getCurrentUserRole() === "admin" ? "inline-flex" : "none";
   }
 
-  function renderRolesPanel() {
-    const panel = document.getElementById("gt-roles-panel");
-    if (!panel) return;
+  function renderWorkspaceSettingsContent(ws) {
+    const modal = document.getElementById("gt-workspace-settings-modal");
+    if (!modal) return;
 
-    const role = getCurrentUserRole();
-    if (role !== "admin") {
-      panel.innerHTML = "";
-      panel.style.display = "none";
-      return;
-    }
+    const roles = APP_STATE.workspaceRoles[ws.id] || {};
+    const staff = APP_STATE.staff || [];
 
-    panel.style.display = "block";
+    const rows = staff.map((u) => {
+      const current = roles[u.email.toLowerCase()] || "none";
+      return `
+        <div class="gt-role-row">
+          <div>
+            <div class="gt-role-name">${u.name}</div>
+            <div class="gt-role-email">${u.email}</div>
+          </div>
+          <select class="gt-select gt-role-select" data-email="${u.email}">
+            <option value="none">No access</option>
+            <option value="admin" ${current === "admin" ? "selected" : ""}>Admin</option>
+            <option value="manager" ${current === "manager" ? "selected" : ""}>Manager</option>
+            <option value="member" ${current === "member" ? "selected" : ""}>Member</option>
+          </select>
+        </div>
+      `;
+    });
 
-    const wsId = APP_STATE.currentWorkspaceId;
-    const roles = wsId ? APP_STATE.workspaceRoles[wsId] || {} : {};
-    const entries = Object.entries(roles);
-
-    let listHtml = "<div class=\"gt-role-list\">";
-    if (!entries.length) {
-      listHtml += "<div class=\"gt-muted\">No roles yet.</div>";
-    } else {
-      entries.forEach(([email, r]) => {
-        listHtml += `<div class="gt-role-row"><span>${email}</span><span class="gt-chip gt-chip-plain">${r}</span></div>`;
-      });
-    }
-    listHtml += "</div>";
-
-    panel.innerHTML = `
-      <div class="gt-field-group">
-        <label>Workspace roles</label>
-        ${listHtml}
-      </div>
-      <div class="gt-role-form">
-        <input id="gt-role-email" class="gt-input" type="email" placeholder="user@example.com" />
-        <select id="gt-role-select" class="gt-select">
-          <option value="admin">Admin</option>
-          <option value="manager">Manager</option>
-          <option value="member">Member</option>
-        </select>
-        <button id="gt-role-save" class="gt-button gt-button-primary">Save Role</button>
+    modal.innerHTML = `
+      <div class="gt-modal-backdrop" data-close="1"></div>
+      <div class="gt-modal-card">
+        <div class="gt-modal-header">
+          <div>
+            <div class="gt-modal-title">Workspace settings</div>
+            <div class="gt-modal-sub">${ws.name}</div>
+          </div>
+          <button class="gt-button" id="gt-modal-close">✕</button>
+        </div>
+        <div class="gt-modal-section">
+          <div class="gt-modal-label">Roles & access</div>
+          <div class="gt-modal-help">Right-click a workspace to open settings. Changes save instantly.</div>
+          <div class="gt-role-list">${rows.join("") || "<div class='gt-muted'>No staff loaded</div>"}</div>
+        </div>
       </div>
     `;
 
-    const saveBtn = document.getElementById("gt-role-save");
-    const emailInput = document.getElementById("gt-role-email");
-    const roleSelect = document.getElementById("gt-role-select");
+    const closeBtn = document.getElementById("gt-modal-close");
+    if (closeBtn) closeBtn.onclick = closeWorkspaceSettings;
 
-    if (saveBtn && emailInput && roleSelect) {
-      saveBtn.onclick = async () => {
-        const email = (emailInput.value || "").trim().toLowerCase();
-        const newRole = roleSelect.value;
-        if (!email) return alert("Enter an email to assign a role.");
-        if (!wsId || !APP_STATE.runtime.locationId) return;
+    modal.querySelectorAll(".gt-modal-backdrop").forEach((b) => {
+      b.onclick = closeWorkspaceSettings;
+    });
 
-        try {
-          const resp = await fetch(WORKSPACE_ROLES_API, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              locationId: APP_STATE.runtime.locationId,
-              workspaceId: wsId,
-              userEmail: email,
-              role: newRole,
-            }),
-          });
-          const data = await resp.json();
-          if (!resp.ok || !data.ok) {
-            alert("Failed to save role");
-            console.warn("[app] save role failed", resp.status, data);
-            return;
-          }
-          const map = APP_STATE.workspaceRoles[wsId] || {};
-          map[email] = newRole;
-          APP_STATE.workspaceRoles[wsId] = map;
-          renderRolesPanel();
-          renderViewTabs();
-          updateWorkspaceActionsVisibility();
-        } catch (err) {
-          console.warn("[app] save role error", err);
-          alert("Unexpected error saving role");
+    modal.querySelectorAll(".gt-role-select").forEach((sel) => {
+      sel.addEventListener("change", async () => {
+        const email = sel.getAttribute("data-email");
+        const role = sel.value;
+        await saveWorkspaceRole(ws.id, email, role);
+        renderWorkspaceSettingsContent(ws);
+      });
+    });
+  }
+
+  async function saveWorkspaceRole(workspaceId, email, role) {
+    if (!workspaceId || !APP_STATE.runtime.locationId || !email) return;
+    if (role === "none") {
+      try {
+        const url = `${WORKSPACE_ROLES_API}?locationId=${encodeURIComponent(
+          APP_STATE.runtime.locationId
+        )}&workspaceId=${encodeURIComponent(workspaceId)}&userEmail=${encodeURIComponent(email)}`;
+        const resp = await fetch(url, { method: "DELETE" });
+        const data = await resp.json();
+        if (!resp.ok || !data.ok) {
+          console.warn("[app] delete role failed", resp.status, data);
+          alert("Failed to remove role");
+          return;
         }
-      };
+        const map = APP_STATE.workspaceRoles[workspaceId] || {};
+        delete map[email.toLowerCase()];
+        APP_STATE.workspaceRoles[workspaceId] = map;
+      } catch (err) {
+        console.warn("[app] delete role error", err);
+        alert("Unexpected error removing role");
+      }
+      return;
+    }
+
+    try {
+      const resp = await fetch(WORKSPACE_ROLES_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          locationId: APP_STATE.runtime.locationId,
+          workspaceId,
+          userEmail: email,
+          role,
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        console.warn("[app] save role failed", resp.status, data);
+        alert("Failed to save role");
+        return;
+      }
+      const map = APP_STATE.workspaceRoles[workspaceId] || {};
+      map[email.toLowerCase()] = role;
+      APP_STATE.workspaceRoles[workspaceId] = map;
+    } catch (err) {
+      console.warn("[app] save role error", err);
+      alert("Unexpected error saving role");
     }
   }
 
-  function renderAssigneeFilter() {
-    const sel = document.getElementById("gt-assignee-filter");
-    if (!sel) return;
+  async function openWorkspaceSettings(workspaceId) {
+    const modal = document.getElementById("gt-workspace-settings-modal");
+    if (!modal) return;
+    const ws = APP_STATE.workspaces.find((w) => w.id === workspaceId);
+    if (!ws) return;
 
-    const current = APP_STATE.filters.assigneeEmail || "";
+    if (getCurrentUserRole() !== "admin") return;
 
-    sel.innerHTML = "";
-    const optAll = document.createElement("option");
-    optAll.value = "";
-    optAll.textContent = "All assignees";
-    sel.appendChild(optAll);
+    // ensure staff and roles are loaded
+    if (!APP_STATE.staff.length) {
+      await fetchStaffBackend();
+    }
+    await fetchWorkspaceRoles(workspaceId);
 
-    APP_STATE.staff.forEach((u) => {
-      const opt = document.createElement("option");
-      opt.value = u.email;
-      opt.textContent = u.name;
-      sel.appendChild(opt);
-    });
-
-    sel.value = current;
-
-    sel.onchange = () => {
-      APP_STATE.filters.assigneeEmail = sel.value || "";
-      renderTasks();
-      renderBoardView();
-      if (APP_STATE.currentView === "dashboard" && canViewDashboard()) {
-        renderDashboardView();
-      }
-    };
+    renderWorkspaceSettingsContent(ws);
+    modal.classList.remove("is-hidden");
   }
+
+  function closeWorkspaceSettings() {
+    const modal = document.getElementById("gt-workspace-settings-modal");
+    if (modal) {
+      modal.classList.add("is-hidden");
+      modal.innerHTML = "";
+    }
+  }
+
+
+  // Assignee filter removed from UI for now; filtering uses full list
 
   function getFilteredTasks() {
     const assignee = APP_STATE.filters.assigneeEmail;
@@ -1097,13 +1111,11 @@
   document.addEventListener("DOMContentLoaded", () => {
     buildLayout();
     updateHeaderUI();
-    renderAssigneeFilter();
     renderViewTabs();
     renderTasks();
     renderBoardView();
     updateWorkspaceShellVisibility();
     updateWorkspaceActionsVisibility();
-    renderRolesPanel();
 
     const addBtn = document.getElementById("gt-add-task");
     if (addBtn) addBtn.onclick = addTask;

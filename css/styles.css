@@ -215,6 +215,38 @@ body {
   gap: 8px;
 }
 
+.gt-workspace-list-header {
+  font-size: 11px;
+  color: var(--gt-text-muted);
+}
+
+.gt-workspace-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gt-workspace-item {
+  padding: 7px 9px;
+  border: 1px solid var(--gt-border-subtle);
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  user-select: none;
+}
+
+.gt-workspace-item:hover {
+  border-color: #9ca3af;
+  background: #f9fafb;
+}
+
+.gt-workspace-item.is-active {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 1px rgba(79, 70, 229, 0.25);
+  background: #eef2ff;
+}
+
 /* =========================
    VIEW TABS
    ========================= */
@@ -331,6 +363,76 @@ body {
   background: #fee2e2;
 }
 
+/* Modal */
+.gt-modal {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.gt-modal:not(.is-hidden) {
+  display: flex;
+}
+
+.gt-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.45);
+}
+
+.gt-modal-card {
+  position: relative;
+  width: min(640px, 92vw);
+  max-height: 90vh;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid var(--gt-border-subtle);
+  box-shadow: var(--gt-shadow-soft);
+  padding: 14px;
+  overflow: auto;
+  z-index: 1;
+}
+
+.gt-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.gt-modal-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.gt-modal-sub {
+  font-size: 12px;
+  color: var(--gt-text-muted);
+}
+
+.gt-modal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gt-modal-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+}
+
+.gt-modal-help {
+  font-size: 12px;
+  color: var(--gt-text-muted);
+}
+
 /* Roles panel */
 .gt-roles-panel {
   border-top: 1px dashed var(--gt-border-subtle);
@@ -374,6 +476,16 @@ body {
   border: 1px solid var(--gt-border-subtle);
   border-radius: 6px;
   background: #fff;
+}
+
+.gt-role-name {
+  font-size: 13px;
+  color: #111827;
+}
+
+.gt-role-email {
+  font-size: 11px;
+  color: var(--gt-text-muted);
 }
 
 .gt-chip-plain {

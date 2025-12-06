@@ -624,32 +624,9 @@
   }
 
   function setActiveMode(mode) {
-    APP_STATE.currentMode = mode === "dashboard" ? "dashboard" : "data";
-
-    const isDashboard = APP_STATE.currentMode === "dashboard";
-    const viewTabs = document.getElementById("gt-view-tabs");
-    const gridTabs = document.getElementById("gt-grid-tabs");
-    const filterBar = document.getElementById("gt-filter-bar");
-    const tableEl = document.getElementById("gt-view-table");
-    const boardEl = document.getElementById("gt-view-board");
-    const dashEl = document.getElementById("gt-view-dashboard");
-
-    if (isDashboard) {
-      if (viewTabs) viewTabs.classList.add("is-hidden");
-      if (gridTabs) gridTabs.classList.add("is-hidden");
-      if (filterBar) filterBar.classList.add("is-hidden");
-      if (tableEl) tableEl.classList.add("is-hidden");
-      if (boardEl) boardEl.classList.add("is-hidden");
-      if (dashEl) dashEl.classList.remove("is-hidden");
-      APP_STATE.currentView = "dashboard";
-      renderDashboardView();
-    } else {
-      if (viewTabs) viewTabs.classList.remove("is-hidden");
-      if (gridTabs) gridTabs.classList.remove("is-hidden");
-      if (filterBar) filterBar.classList.remove("is-hidden");
-      setActiveView(APP_STATE.currentView === "dashboard" ? "table" : APP_STATE.currentView, { force: true });
-    }
-
+    const wantsDashboard = mode === "dashboard";
+    const targetView = wantsDashboard ? "dashboard" : (APP_STATE.currentView === "dashboard" ? "table" : APP_STATE.currentView || "table");
+    setActiveView(targetView, { force: true });
     renderModeTabs();
   }
 
@@ -720,6 +697,7 @@
     const valid = ["table", "board", "dashboard"];
     const nextView = valid.includes(view) ? view : "table";
     APP_STATE.currentView = nextView;
+    APP_STATE.currentMode = nextView === "dashboard" ? "dashboard" : "data";
 
     const tabs = document.querySelectorAll(".gt-view-tab");
     tabs.forEach((btn) => {
@@ -730,12 +708,10 @@
     const tableEl = document.getElementById("gt-view-table");
     const boardEl = document.getElementById("gt-view-board");
     const dashEl = document.getElementById("gt-view-dashboard");
-
-    const mode = APP_STATE.currentMode || "data";
     if (tableEl && boardEl && dashEl) {
-      const isTable = nextView === "table" && mode === "data";
-      const isBoard = nextView === "board" && mode === "data";
-      const isDash = nextView === "dashboard" && mode === "dashboard";
+      const isTable = nextView === "table";
+      const isBoard = nextView === "board";
+      const isDash = nextView === "dashboard";
       tableEl.classList.toggle("is-active", isTable);
       boardEl.classList.toggle("is-active", isBoard);
       dashEl.classList.toggle("is-active", isDash);
@@ -746,11 +722,11 @@
 
     if (options.skipRender) return;
 
-    if (nextView === "table" && mode === "data") {
+    if (nextView === "table") {
       renderTasks();
-    } else if (nextView === "board" && mode === "data") {
+    } else if (nextView === "board") {
       renderBoardView();
-    } else if (nextView === "dashboard" && mode === "dashboard" && canViewDashboard()) {
+    } else if (nextView === "dashboard" && canViewDashboard()) {
       renderDashboardView();
     }
   }

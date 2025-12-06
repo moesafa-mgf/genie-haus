@@ -127,6 +127,7 @@
         </main>
         <div id="gt-workspace-settings-modal" class="gt-modal is-hidden"></div>
         <div id="gt-workspace-chooser-page" class="gt-chooser-page is-hidden"></div>
+        <div id="gt-toast-stack" class="gt-toast-stack"></div>
       </div>
     `;
   }
@@ -609,6 +610,25 @@
       "Unknown user";
   }
 
+  function showToast(message, type = "success") {
+    const stack = document.getElementById("gt-toast-stack");
+    if (!stack) return;
+    const toast = document.createElement("div");
+    toast.className = `gt-toast gt-toast-${type}`;
+    toast.textContent = message;
+    stack.appendChild(toast);
+    // small stagger for transitions
+    requestAnimationFrame(() => {
+      toast.classList.add("is-visible");
+    });
+    setTimeout(() => {
+      toast.classList.remove("is-visible");
+      setTimeout(() => {
+        stack.removeChild(toast);
+      }, 250);
+    }, 2400);
+  }
+
   function renderWorkspaceSelect() {
     // no-op stub (sidebar removed)
   }
@@ -759,7 +779,8 @@
       iconSave.onclick = async () => {
         const raw = iconInput.value;
         const val = raw && raw.trim() ? raw.trim() : null;
-        await patchWorkspace(ws.id, { iconUrl: val });
+        const updated = await patchWorkspace(ws.id, { iconUrl: val });
+        if (updated) showToast("Workspace icon saved", "success");
       };
     }
 
@@ -767,7 +788,8 @@
       renameBtn.onclick = async () => {
         const newName = nameInput.value.trim();
         if (!newName) return alert("Name is required");
-        await patchWorkspace(ws.id, { name: newName });
+        const updated = await patchWorkspace(ws.id, { name: newName });
+        if (updated) showToast("Workspace renamed", "success");
       };
     }
 
@@ -830,6 +852,7 @@
       const map = APP_STATE.workspaceRoles[workspaceId] || {};
       map[email.toLowerCase()] = role;
       APP_STATE.workspaceRoles[workspaceId] = map;
+      showToast("Role updated", "success");
     } catch (err) {
       console.warn("[app] save role error", err);
       alert("Unexpected error saving role");
@@ -883,6 +906,7 @@
       }
       renderWorkspaceSettingsContent(APP_STATE.workspaces.find((w) => w.id === id));
       renderWorkspaceSelect();
+      showToast("Workspace updated", "success");
       return data.workspace;
     } catch (err) {
       console.warn("[app] patch workspace error", err);

@@ -23,20 +23,20 @@
   };
 
   const DEFAULT_COLUMNS = [
-    { id: "title", label: "Title", type: "text", locked: true },
+    { id: "title", label: "Title", type: "text", locked: false },
     {
       id: "status",
       label: "Status",
       type: "single_select",
-      locked: true,
+      locked: false,
       options: [
         { id: "todo", label: "To Do", color: "gray" },
         { id: "in_progress", label: "In Progress", color: "blue" },
         { id: "done", label: "Done", color: "green" },
       ],
     },
-    { id: "assignee", label: "Assignee", type: "user", locked: true },
-    { id: "updatedAt", label: "Updated", type: "date", locked: true, readonly: true },
+    { id: "assignee", label: "Assignee", type: "user", locked: false },
+    { id: "updatedAt", label: "Updated", type: "date", locked: false, readonly: true },
   ];
 
   const REMOTE_SYNC_API = "/api/workspace-state";
@@ -408,15 +408,15 @@
       if (data.state && Array.isArray(data.state.tasks)) {
         APP_STATE.tasks = data.state.tasks;
         APP_STATE.columns = Array.isArray(data.state.columns) && data.state.columns.length
-          ? data.state.columns
-          : DEFAULT_COLUMNS.slice();
+          ? unlockColumns(data.state.columns)
+          : unlockColumns(DEFAULT_COLUMNS.slice());
         renderTasks();
         renderBoardView();
         if (APP_STATE.currentView === "dashboard" && canViewDashboard()) {
           renderDashboardView();
         }
       } else {
-        APP_STATE.columns = APP_STATE.columns.length ? APP_STATE.columns : DEFAULT_COLUMNS.slice();
+        APP_STATE.columns = APP_STATE.columns.length ? unlockColumns(APP_STATE.columns) : unlockColumns(DEFAULT_COLUMNS.slice());
       }
       setSyncStatus("ok");
     } catch (err) {
@@ -673,6 +673,10 @@
 
   function renderWorkspaceSelect() {
     // no-op stub (sidebar removed)
+  }
+
+  function unlockColumns(cols) {
+    return (cols || []).map((c) => ({ ...c, locked: false }));
   }
 
   function selectWorkspace(workspaceId) {
@@ -1048,7 +1052,7 @@
 
   function renameField(id, newLabel) {
     const col = (APP_STATE.columns || []).find((c) => c.id === id);
-    if (!col || col.locked) return;
+    if (!col) return;
     col.label = newLabel.trim();
     persistColumns();
     renderFieldsModal();
@@ -1057,7 +1061,7 @@
 
   function deleteField(id) {
     const col = (APP_STATE.columns || []).find((c) => c.id === id);
-    if (!col || col.locked) return;
+    if (!col) return;
     APP_STATE.columns = APP_STATE.columns.filter((c) => c.id !== id);
     // Remove values from tasks
     APP_STATE.tasks = APP_STATE.tasks.map((t) => {
@@ -1104,7 +1108,7 @@
         return `
           <div class="gt-field-row" data-id="${c.id}">
             <div>
-              <div class="gt-field-name">${c.label}${c.locked ? " (locked)" : ""}</div>
+              <div class="gt-field-name">${c.label}</div>
               <div class="gt-field-meta">${c.type}${isSelect ? ` · ${optionsText}` : ""}</div>
               ${
                 isSelect
@@ -1116,14 +1120,10 @@
               }
             </div>
             <div class="gt-field-actions">
-              ${
-                c.locked
-                  ? ""
-                  : `<button class="gt-button gt-button-small gt-field-rename">Rename</button>
-                     <button class="gt-button gt-button-small" data-move="up">↑</button>
-                     <button class="gt-button gt-button-small" data-move="down">↓</button>
-                     <button class="gt-button gt-button-danger gt-button-small gt-field-delete">Delete</button>`
-              }
+              <button class="gt-button gt-button-small gt-field-rename">Rename</button>
+              <button class="gt-button gt-button-small" data-move="up">↑</button>
+              <button class="gt-button gt-button-small" data-move="down">↓</button>
+              <button class="gt-button gt-button-danger gt-button-small gt-field-delete">Delete</button>
             </div>
           </div>
         `;

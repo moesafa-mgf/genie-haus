@@ -757,7 +757,8 @@
 
     if (iconSave && iconInput) {
       iconSave.onclick = async () => {
-        const val = iconInput.value.trim() || null;
+        const raw = iconInput.value;
+        const val = raw && raw.trim() ? raw.trim() : null;
         await patchWorkspace(ws.id, { iconUrl: val });
       };
     }
@@ -840,11 +841,18 @@
       alert("No workspace selected to update.");
       return null;
     }
+    const cleanPayload = {};
+    if (Object.prototype.hasOwnProperty.call(payload, "name")) {
+      cleanPayload.name = payload.name === undefined ? null : payload.name;
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, "iconUrl")) {
+      cleanPayload.iconUrl = payload.iconUrl === undefined ? null : payload.iconUrl;
+    }
     try {
       const resp = await fetch(`${WORKSPACES_API}?id=${encodeURIComponent(id)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(cleanPayload),
       });
       const respClone = resp.clone();
       let data;

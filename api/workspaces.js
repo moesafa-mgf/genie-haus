@@ -153,10 +153,11 @@ module.exports = async (req, res) => {
       return res.status(400).json({ ok: false, error: err.message });
     }
 
-      const { name, iconUrl } = body;
-      if (!name && typeof iconUrl === "undefined") {
+      const name = typeof body.name === "undefined" ? null : body.name;
+      const iconUrl = typeof body.iconUrl === "undefined" ? null : body.iconUrl;
+      if (name === null && iconUrl === null) {
         return res.status(400).json({ ok: false, error: "name or iconUrl is required" });
-    }
+      }
 
     try {
       await ensureIconColumn();

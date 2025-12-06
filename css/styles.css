@@ -171,6 +171,10 @@ body {
   height: calc(100% - 32px);     /* fill remaining height under header */
 }
 
+#gt-switch-workspace {
+  font-size: 11px;
+}
+
 /* Panels */
 .gt-panel {
   background: var(--gt-bg-card);
@@ -394,6 +398,34 @@ body {
   padding: 14px;
   overflow: auto;
   z-index: 1;
+}
+
+.gt-workspace-picker-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+}
+
+.gt-workspace-picker-item {
+  border: 1px solid var(--gt-border-subtle);
+  border-radius: 10px;
+  padding: 12px;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  box-shadow: var(--gt-shadow-subtle);
+}
+
+.gt-workspace-picker-item:hover {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 1px rgba(79, 70, 229, 0.25);
+  background: #eef2ff;
+}
+
+.gt-workspace-picker-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: #111827;
 }
 
 .gt-modal-header {

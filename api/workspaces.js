@@ -45,19 +45,44 @@ module.exports = async (req, res) => {
   }
 
   if (req.method === "GET") {
-    const { locationId } = req.query || {};
+    const { locationId, userEmail } = req.query || {};
     if (!locationId) {
       return res.status(400).json({ ok: false, error: "locationId is required" });
     }
 
     try {
-      const rows = await sql`
-        SELECT id, location_id, name, created_by, created_at, updated_at
-        FROM workspaces
-        WHERE location_id = ${locationId} AND archived_at IS NULL
-        ORDER BY created_at ASC
-      `;
-      return res.status(200).json({ ok: true, workspaces: rows });
+      let workspaces;
+
+      if (userEmail) {
+        // If the user has explicit roles, limit to those; otherwise return all
+        const roleRows = await sql`
+          SELECT workspace_id FROM workspace_roles
+          WHERE location_id = ${locationId} AND user_email = ${userEmail.toLowerCase()}
+        `;
+
+        if (roleRows.length) {
+          const ids = roleRows.map((r) => r.workspace_id);
+          workspaces = await sql`
+            SELECT id, location_id, name, created_by, created_at, updated_at
+            FROM workspaces
+            WHERE location_id = ${locationId}
+              AND archived_at IS NULL
+              AND id = ANY (${sql.array(ids)})
+            ORDER BY created_at ASC
+          `;
+        }
+      }
+
+      if (!workspaces) {
+        workspaces = await sql`
+          SELECT id, location_id, name, created_by, created_at, updated_at
+          FROM workspaces
+          WHERE location_id = ${locationId} AND archived_at IS NULL
+          ORDER BY created_at ASC
+        `;
+      }
+
+      return res.status(200).json({ ok: true, workspaces });
     } catch (err) {
       console.error("[workspaces][GET] error:", err);
       return res.status(500).json({ ok: false, error: "DB error (GET /api/workspaces)", detail: err.message });

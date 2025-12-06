@@ -26,6 +26,10 @@
   const WORKSPACE_ROLES_API = "/api/workspace-roles";
   const GHL_USERS_API = "/api/ghl-users";
 
+  const UI_STATE = {
+    chooserOpen: false,
+  };
+
   let draggedTaskId = null;
 
   // -------- 0. Build layout into #app --------
@@ -47,6 +51,7 @@
             </div>
           </div>
           <div class="gt-header-right">
+            <button id="gt-switch-workspace" class="gt-button" style="display:none;">Switch workspace</button>
             <span class="gt-badge" id="gt-sync-status">Syncing…</span>
           </div>
         </header>
@@ -131,6 +136,7 @@
           </section>
         </main>
         <div id="gt-workspace-settings-modal" class="gt-modal is-hidden"></div>
+        <div id="gt-workspace-chooser" class="gt-modal is-hidden"></div>
       </div>
     `;
   }
@@ -147,6 +153,11 @@
   function canViewDashboard() {
     const role = getCurrentUserRole();
     return role === "admin" || role === "manager";
+  }
+
+  function isMemberRole() {
+    const role = getCurrentUserRole();
+    return role === "member";
   }
 
   // -------- 2. Runtime (URL + postMessage) --------
@@ -218,7 +229,7 @@
     try {
       const url = `${WORKSPACES_API}?locationId=${encodeURIComponent(
         APP_STATE.runtime.locationId
-      )}`;
+      )}&userEmail=${encodeURIComponent(APP_STATE.runtime.email || "")}`;
       const resp = await fetch(url);
       const data = await resp.json();
       if (!resp.ok || !data.ok) {
@@ -239,13 +250,18 @@
 
       // Auto-select first workspace if none selected
       if (!APP_STATE.currentWorkspaceId && APP_STATE.workspaces.length) {
-        selectWorkspace(APP_STATE.workspaces[0].id);
+        if (APP_STATE.workspaces.length === 1) {
+          selectWorkspace(APP_STATE.workspaces[0].id);
+        } else {
+          openWorkspaceChooser();
+        }
       } else if (
         APP_STATE.currentWorkspaceId &&
         !APP_STATE.workspaces.find((w) => w.id === APP_STATE.currentWorkspaceId)
       ) {
         // Previously selected workspace no longer exists
         selectWorkspace(null);
+        openWorkspaceChooser();
       }
     } catch (err) {
       console.warn("[app] workspaces fetch error", err);
@@ -480,6 +496,77 @@
     }
   }
 
+  // -------- Workspace chooser --------
+  function openWorkspaceChooser() {
+    const modal = document.getElementById("gt-workspace-chooser");
+    if (!modal) return;
+    UI_STATE.chooserOpen = true;
+
+    const canCreate = getCurrentUserRole() === "admin";
+    const filtered = isMemberRole()
+      ? APP_STATE.workspaces
+      : APP_STATE.workspaces;
+
+    const items = filtered
+      .map(
+        (ws) => `
+          <div class="gt-workspace-picker-item" data-id="${ws.id}">
+            <div class="gt-workspace-picker-name">${ws.name}</div>
+          </div>
+        `
+      )
+      .join("") || "<div class='gt-muted'>No workspaces</div>";
+
+    modal.innerHTML = `
+      <div class="gt-modal-backdrop" data-close="1"></div>
+      <div class="gt-modal-card">
+        <div class="gt-modal-header">
+          <div>
+            <div class="gt-modal-title">Select a workspace</div>
+            <div class="gt-modal-sub">Choose to continue</div>
+          </div>
+          <button class="gt-button" id="gt-chooser-close">✕</button>
+        </div>
+        <div class="gt-workspace-picker-list">${items}</div>
+        ${canCreate
+          ? '<button id="gt-chooser-create" class="gt-button gt-button-primary" style="margin-top:10px;">+ New Workspace</button>'
+          : ""}
+      </div>
+    `;
+
+    modal.classList.remove("is-hidden");
+
+    modal.querySelectorAll("[data-close]").forEach((b) => {
+      b.onclick = closeWorkspaceChooser;
+    });
+    const closeBtn = document.getElementById("gt-chooser-close");
+    if (closeBtn) closeBtn.onclick = closeWorkspaceChooser;
+
+    modal.querySelectorAll(".gt-workspace-picker-item").forEach((el) => {
+      el.onclick = () => {
+        const id = el.getAttribute("data-id");
+        selectWorkspace(id);
+        closeWorkspaceChooser();
+      };
+    });
+
+    const createBtn = document.getElementById("gt-chooser-create");
+    if (createBtn) {
+      createBtn.onclick = () => {
+        closeWorkspaceChooser();
+        createWorkspaceFlow();
+      };
+    }
+  }
+
+  function closeWorkspaceChooser() {
+    const modal = document.getElementById("gt-workspace-chooser");
+    if (!modal) return;
+    modal.classList.add("is-hidden");
+    modal.innerHTML = "";
+    UI_STATE.chooserOpen = false;
+  }
+
   // -------- 6. Workspace shell visibility --------
   function updateWorkspaceShellVisibility() {
     const noWs = document.getElementById("gt-no-workspace");
@@ -533,7 +620,10 @@
       item.className = "gt-workspace-item" + (ws.id === current ? " is-active" : "");
       item.textContent = ws.name;
       item.title = "Right-click for settings";
-      item.onclick = () => selectWorkspace(ws.id);
+      item.onclick = () => {
+        selectWorkspace(ws.id);
+        closeWorkspaceChooser();
+      };
       item.oncontextmenu = (e) => {
         e.preventDefault();
         openWorkspaceSettings(ws.id);
@@ -562,8 +652,13 @@
 
   function updateWorkspaceActionsVisibility() {
     const createBtn = document.getElementById("gt-create-workspace");
-    if (!createBtn) return;
-    createBtn.style.display = getCurrentUserRole() === "admin" ? "inline-flex" : "none";
+    const switchBtn = document.getElementById("gt-switch-workspace");
+    if (createBtn) {
+      createBtn.style.display = getCurrentUserRole() === "admin" ? "inline-flex" : "none";
+    }
+    if (switchBtn) {
+      switchBtn.style.display = APP_STATE.workspaces.length ? "inline-flex" : "none";
+    }
   }
 
   function renderWorkspaceSettingsContent(ws) {
@@ -692,6 +787,7 @@
 
     renderWorkspaceSettingsContent(ws);
     modal.classList.remove("is-hidden");
+    closeWorkspaceChooser();
   }
 
   function closeWorkspaceSettings() {
@@ -1120,20 +1216,17 @@
     const addBtn = document.getElementById("gt-add-task");
     if (addBtn) addBtn.onclick = addTask;
 
-    const wsSelect = document.getElementById("gt-workspace-select");
-    if (wsSelect) {
-      wsSelect.value = ""; // start on "Select workspace…"
-      wsSelect.addEventListener("change", () => {
-        selectWorkspace(wsSelect.value || null);
-      });
-    }
-
     const createBtn = document.getElementById("gt-create-workspace");
     if (createBtn) {
       createBtn.onclick = () => {
         if (getCurrentUserRole() !== "admin") return;
         createWorkspaceFlow();
       };
+    }
+
+    const switchBtn = document.getElementById("gt-switch-workspace");
+    if (switchBtn) {
+      switchBtn.onclick = openWorkspaceChooser;
     }
 
     // Staff fetch (gets users / assignees from GHL)

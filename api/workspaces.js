@@ -17,6 +17,10 @@ const sql = process.env.DATABASE_URL
 
 function parseJsonBody(req) {
   let body = req.body;
+  // Vercel can hand us a Buffer; normalize to string first
+  if (Buffer.isBuffer(body)) {
+    body = body.toString("utf8");
+  }
   if (typeof body === "string") {
     try {
       body = JSON.parse(body);
@@ -24,7 +28,9 @@ function parseJsonBody(req) {
       throw new Error("Invalid JSON in request body");
     }
   }
-  return body || {};
+  if (!body) return {};
+  if (typeof body === "object") return body;
+  return {};
 }
 
 function getIdFromPath(req) {

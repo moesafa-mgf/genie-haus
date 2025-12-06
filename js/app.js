@@ -126,6 +126,7 @@
   let openColumnMenuEl = null;
   let draggingColumnId = null;
   let contextMenuEl = null;
+  let draggingRowId = null;
 
   // -------- 0. Build layout into #app --------
   function buildLayout() {
@@ -1677,6 +1678,21 @@
     persistColumns();
   }
 
+  function reorderTasks(sourceId, targetId) {
+    if (!sourceId || !targetId || sourceId === targetId) return;
+    const idxMap = Object.fromEntries(APP_STATE.tasks.map((t, i) => [t.id, i]));
+    const fromIdx = idxMap[sourceId];
+    const toIdx = idxMap[targetId];
+    if (fromIdx === undefined || toIdx === undefined) return;
+    const copy = APP_STATE.tasks.slice();
+    const [moved] = copy.splice(fromIdx, 1);
+    copy.splice(toIdx, 0, moved);
+    APP_STATE.tasks = copy;
+    renderTasks();
+    renderBoardView();
+    schedulePush();
+  }
+
   function attachColumnDragHandlers(th, colId) {
     if (!th) return;
     th.draggable = true;
@@ -2204,6 +2220,12 @@
 
     // Build header
     theadRow.innerHTML = "";
+
+    const leadTh = document.createElement("th");
+    leadTh.className = "gt-col-header gt-col-leading";
+    leadTh.textContent = "";
+    theadRow.appendChild(leadTh);
+
     columns.forEach((c) => {
       const th = document.createElement("th");
       th.className = "gt-col-header is-draggable";
@@ -2302,6 +2324,49 @@
     const makeRow = (task) => {
       const displayIndex = ++rowNumber;
       const tr = document.createElement("tr");
+
+      const lead = document.createElement("td");
+      lead.className = "gt-row-leading";
+      lead.draggable = true;
+      lead.addEventListener("dragstart", () => {
+        draggingRowId = task.id;
+        tr.classList.add("is-dragging-row");
+      });
+      lead.addEventListener("dragend", () => {
+        draggingRowId = null;
+        tr.classList.remove("is-dragging-row");
+      });
+      lead.addEventListener("dragover", (e) => {
+        if (!draggingRowId || draggingRowId === task.id) return;
+        e.preventDefault();
+        tr.classList.add("is-drag-over-row");
+      });
+      lead.addEventListener("dragleave", () => {
+        tr.classList.remove("is-drag-over-row");
+      });
+      lead.addEventListener("drop", (e) => {
+        e.preventDefault();
+        tr.classList.remove("is-drag-over-row");
+        if (draggingRowId) {
+          reorderTasks(draggingRowId, task.id);
+        }
+        draggingRowId = null;
+      });
+
+      const handle = document.createElement("span");
+      handle.className = "gt-row-handle";
+      handle.textContent = "⋮⋮";
+      const openBtn = document.createElement("button");
+      openBtn.className = "gt-row-open";
+      openBtn.title = "Open record";
+      openBtn.textContent = "⤢";
+      openBtn.onclick = (e) => {
+        e.stopPropagation();
+        openDetailDrawer(task.id);
+      };
+      lead.appendChild(handle);
+      lead.appendChild(openBtn);
+      tr.appendChild(lead);
 
       columns.forEach((col) => {
         const td = document.createElement("td");
@@ -2591,7 +2656,7 @@
       const tr = document.createElement("tr");
       tr.className = "gt-group-row";
       const td = document.createElement("td");
-      td.colSpan = columns.length + 1;
+      td.colSpan = columns.length + 2;
       td.textContent = label;
       tr.appendChild(td);
       tbody.appendChild(tr);

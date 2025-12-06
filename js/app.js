@@ -2049,6 +2049,31 @@
     gridMenuEl = null;
   }
 
+  function clearGridData(gridId) {
+    const grid = APP_STATE.grids.find((g) => g.id === gridId);
+    if (!grid) return;
+    grid.tasks = [];
+    if (grid.id === APP_STATE.currentGridId) {
+      APP_STATE.tasks = [];
+      renderTasks();
+      renderBoardView();
+    }
+    schedulePush();
+  }
+
+  function resetGridFilters(gridId) {
+    const grid = APP_STATE.grids.find((g) => g.id === gridId);
+    if (!grid) return;
+    grid.filters = { ...defaultFilters() };
+    if (grid.id === APP_STATE.currentGridId) {
+      APP_STATE.filters = { ...defaultFilters() };
+      renderFiltersBar();
+      renderTasks();
+      renderBoardView();
+    }
+    schedulePush();
+  }
+
   function renameGrid(gridId) {
     const grid = APP_STATE.grids.find((g) => g.id === gridId);
     if (!grid) return;
@@ -2101,6 +2126,8 @@
     menu.innerHTML = `
       <button class="gt-context-item" data-action="rename">Rename grid</button>
       <button class="gt-context-item" data-action="duplicate">Duplicate grid</button>
+      <button class="gt-context-item" data-action="reset-filters">Reset filters</button>
+      <button class="gt-context-item" data-action="clear-data">Clear data</button>
       ${APP_STATE.grids.length > 1 ? '<button class="gt-context-item is-danger" data-action="delete">Delete grid</button>' : ''}
     `;
 
@@ -2114,6 +2141,12 @@
           break;
         case "duplicate":
           duplicateGrid(gridId);
+          break;
+        case "reset-filters":
+          resetGridFilters(gridId);
+          break;
+        case "clear-data":
+          clearGridData(gridId);
           break;
         case "delete":
           deleteGrid(gridId);

@@ -16,15 +16,52 @@
     currentWorkspaceId: null, // workspace must be selected first
     currentView: "table", // "table" | "board" | "dashboard"
     tasks: [],
+    columns: [],
     filters: { assigneeEmail: "" },
     sync: { status: "idle", lastRemoteAt: null },
     instanceId: `client_${Math.random().toString(36).slice(2)}`,
   };
 
+  const DEFAULT_COLUMNS = [
+    { id: "title", label: "Title", type: "text", locked: true },
+    {
+      id: "status",
+      label: "Status",
+      type: "single_select",
+      locked: true,
+      options: [
+        { id: "todo", label: "To Do", color: "gray" },
+        { id: "in_progress", label: "In Progress", color: "blue" },
+        { id: "done", label: "Done", color: "green" },
+      ],
+    },
+    { id: "assignee", label: "Assignee", type: "user", locked: true },
+    { id: "updatedAt", label: "Updated", type: "date", locked: true, readonly: true },
+  ];
+
   const REMOTE_SYNC_API = "/api/workspace-state";
   const WORKSPACES_API = "/api/workspaces";
   const WORKSPACE_ROLES_API = "/api/workspace-roles";
   const GHL_USERS_API = "/api/ghl-users";
+  const FIELD_TYPES = [
+    { value: "text", label: "Single line text" },
+    { value: "long_text", label: "Long text" },
+    { value: "attachment", label: "Attachment" },
+    { value: "checkbox", label: "Checkbox" },
+    { value: "multi_select", label: "Multiple select" },
+    { value: "single_select", label: "Single select" },
+    { value: "user", label: "User" },
+    { value: "date", label: "Date" },
+    { value: "phone", label: "Phone number" },
+    { value: "email", label: "Email" },
+    { value: "url", label: "URL" },
+    { value: "number", label: "Number" },
+    { value: "currency", label: "Currency" },
+    { value: "percent", label: "Percent" },
+    { value: "duration", label: "Duration" },
+    { value: "rating", label: "Rating" },
+  ];
+  const OPTION_COLORS = ["gray", "blue", "green", "red", "yellow", "purple", "pink", "teal"];
 
   const UI_STATE = {
     chooserOpen: false,
@@ -64,6 +101,7 @@
                 <button id="gt-create-workspace" class="gt-button gt-button-primary" style="display:none;">
                   + New Workspace
                 </button>
+                <button id="gt-manage-fields" class="gt-button">Fields</button>
                 <button id="gt-add-task" class="gt-button gt-button-primary">
                   + New Task
                 </button>
@@ -127,6 +165,7 @@
         </main>
         <div id="gt-workspace-settings-modal" class="gt-modal is-hidden"></div>
         <div id="gt-workspace-chooser-page" class="gt-chooser-page is-hidden"></div>
+        <div id="gt-fields-modal" class="gt-modal is-hidden"></div>
         <div id="gt-toast-stack" class="gt-toast-stack"></div>
       </div>
     `;
@@ -370,11 +409,16 @@
 
       if (data.state && Array.isArray(data.state.tasks)) {
         APP_STATE.tasks = data.state.tasks;
+        APP_STATE.columns = Array.isArray(data.state.columns) && data.state.columns.length
+          ? data.state.columns
+          : DEFAULT_COLUMNS.slice();
         renderTasks();
         renderBoardView();
         if (APP_STATE.currentView === "dashboard" && canViewDashboard()) {
           renderDashboardView();
         }
+      } else {
+        APP_STATE.columns = APP_STATE.columns.length ? APP_STATE.columns : DEFAULT_COLUMNS.slice();
       }
       setSyncStatus("ok");
     } catch (err) {
@@ -400,7 +444,7 @@
           locationId: APP_STATE.runtime.locationId,
           workspaceId: APP_STATE.currentWorkspaceId,
           userEmail: APP_STATE.runtime.email || null,
-          state: { tasks: APP_STATE.tasks },
+          state: { tasks: APP_STATE.tasks, columns: APP_STATE.columns },
         }),
       });
       const data = await resp.json();
@@ -952,6 +996,203 @@
     }
   }
 
+  // -------- Field manager (custom columns) --------
+  function openFieldsModal() {
+    const modal = document.getElementById("gt-fields-modal");
+    if (!modal) return;
+    renderFieldsModal();
+    modal.classList.remove("is-hidden");
+  }
+
+  function closeFieldsModal() {
+    const modal = document.getElementById("gt-fields-modal");
+    if (modal) {
+      modal.classList.add("is-hidden");
+      modal.innerHTML = "";
+    }
+  }
+
+  function persistColumns() {
+    pushState();
+    renderTasks();
+    renderBoardView();
+  }
+
+  function addField(label, type) {
+    const trimmed = (label || "").trim();
+    if (!trimmed) return showToast("Field name required", "error");
+    const col = {
+      id: `fld_${Math.random().toString(36).slice(2, 7)}`,
+      label: trimmed,
+      type,
+      options: type === "single_select" || type === "multi_select"
+        ? [
+            { id: "opt1", label: "Option 1", color: "blue" },
+            { id: "opt2", label: "Option 2", color: "green" },
+          ]
+        : undefined,
+    };
+    APP_STATE.columns = [...(APP_STATE.columns || []), col];
+    persistColumns();
+    renderFieldsModal();
+    showToast("Field added", "success");
+  }
+
+  function renameField(id, newLabel) {
+    const col = (APP_STATE.columns || []).find((c) => c.id === id);
+    if (!col || col.locked) return;
+    col.label = newLabel.trim();
+    persistColumns();
+    renderFieldsModal();
+    showToast("Field renamed", "success");
+  }
+
+  function deleteField(id) {
+    const col = (APP_STATE.columns || []).find((c) => c.id === id);
+    if (!col || col.locked) return;
+    APP_STATE.columns = APP_STATE.columns.filter((c) => c.id !== id);
+    // Remove values from tasks
+    APP_STATE.tasks = APP_STATE.tasks.map((t) => {
+      if (!t.fields) return t;
+      const nf = { ...t.fields };
+      delete nf[id];
+      return { ...t, fields: nf };
+    });
+    persistColumns();
+    renderFieldsModal();
+    showToast("Field deleted", "success");
+  }
+
+  function updateSelectOptions(colId, labels) {
+    const col = (APP_STATE.columns || []).find((c) => c.id === colId);
+    if (!col) return;
+    const parts = labels
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    col.options = parts.map((label, idx) => ({
+      id: `opt_${idx}_${Math.random().toString(36).slice(2, 5)}`,
+      label,
+      color: OPTION_COLORS[idx % OPTION_COLORS.length],
+    }));
+    persistColumns();
+    renderFieldsModal();
+    showToast("Options updated", "success");
+  }
+
+  function renderFieldsModal() {
+    const modal = document.getElementById("gt-fields-modal");
+    if (!modal) return;
+    const cols = (APP_STATE.columns && APP_STATE.columns.length)
+      ? APP_STATE.columns
+      : DEFAULT_COLUMNS;
+
+    const listHtml = cols
+      .map((c) => {
+        const isSelect = c.type === "single_select" || c.type === "multi_select";
+        const optionsText = isSelect && Array.isArray(c.options)
+          ? c.options.map((o) => o.label).join(", ") || "None"
+          : "";
+        return `
+          <div class="gt-field-row" data-id="${c.id}">
+            <div>
+              <div class="gt-field-name">${c.label}${c.locked ? " (locked)" : ""}</div>
+              <div class="gt-field-meta">${c.type}${isSelect ? ` · ${optionsText}` : ""}</div>
+            </div>
+            <div class="gt-field-actions">
+              ${
+                c.locked
+                  ? ""
+                  : `<button class="gt-button gt-button-small gt-field-rename">Rename</button>
+                     <button class="gt-button gt-button-danger gt-button-small gt-field-delete">Delete</button>
+                     ${isSelect ? '<button class="gt-button gt-button-small gt-field-edit-options">Edit options</button>' : ""}`
+              }
+            </div>
+          </div>
+        `;
+      })
+      .join("") || "<div class='gt-muted'>No fields</div>";
+
+    const typeOptions = FIELD_TYPES.map(
+      (t) => `<option value="${t.value}">${t.label}</option>`
+    ).join("");
+
+    modal.innerHTML = `
+      <div class="gt-modal-backdrop" data-close="1"></div>
+      <div class="gt-modal-card gt-modal-card-large">
+        <div class="gt-modal-header">
+          <div>
+            <div class="gt-modal-title">Fields</div>
+            <div class="gt-modal-sub">Customize task columns for this workspace</div>
+          </div>
+          <button class="gt-button" id="gt-fields-close">✕</button>
+        </div>
+
+        <div class="gt-modal-section">
+          <div class="gt-field-list">${listHtml}</div>
+        </div>
+
+        <div class="gt-modal-section">
+          <div class="gt-modal-label">Add field</div>
+          <div class="gt-role-form">
+            <input id="gt-field-name" class="gt-input" type="text" placeholder="Field name" />
+            <select id="gt-field-type" class="gt-select">${typeOptions}</select>
+            <button id="gt-field-add" class="gt-button gt-button-primary">Add field</button>
+          </div>
+          <div class="gt-modal-help">Select types support options editing after creation.</div>
+        </div>
+      </div>
+    `;
+
+    modal.querySelectorAll(".gt-modal-backdrop").forEach((b) => {
+      b.onclick = closeFieldsModal;
+    });
+    const closeBtn = document.getElementById("gt-fields-close");
+    if (closeBtn) closeBtn.onclick = closeFieldsModal;
+
+    const addBtn = document.getElementById("gt-field-add");
+    const nameInput = document.getElementById("gt-field-name");
+    const typeSelect = document.getElementById("gt-field-type");
+    if (addBtn && nameInput && typeSelect) {
+      addBtn.onclick = () => {
+        addField(nameInput.value, typeSelect.value);
+        nameInput.value = "";
+        nameInput.focus();
+      };
+    }
+
+    modal.querySelectorAll(".gt-field-rename").forEach((btn) => {
+      btn.onclick = () => {
+        const row = btn.closest(".gt-field-row");
+        const id = row?.getAttribute("data-id");
+        const current = (APP_STATE.columns || []).find((c) => c.id === id);
+        const value = prompt("New field name", current?.label || "");
+        if (value && value.trim()) renameField(id, value);
+      };
+    });
+
+    modal.querySelectorAll(".gt-field-delete").forEach((btn) => {
+      btn.onclick = () => {
+        const row = btn.closest(".gt-field-row");
+        const id = row?.getAttribute("data-id");
+        if (confirm("Delete this field?")) deleteField(id);
+      };
+    });
+
+    modal.querySelectorAll(".gt-field-edit-options").forEach((btn) => {
+      btn.onclick = () => {
+        const row = btn.closest(".gt-field-row");
+        const id = row?.getAttribute("data-id");
+        const col = (APP_STATE.columns || []).find((c) => c.id === id);
+        const existing = (col?.options || []).map((o) => o.label).join(", ");
+        const value = prompt("Enter options, comma separated", existing);
+        if (value !== null) {
+          updateSelectOptions(id, value);
+        }
+      };
+    });
+  }
+
 
   // Assignee filter removed from UI for now; filtering uses full list
 
@@ -987,97 +1228,189 @@
   // -------- 8. TABLE VIEW --------
   function renderTasks() {
     const tbody = document.getElementById("gt-task-tbody");
-    if (!tbody) return;
+    const theadRow = document.querySelector("#gt-view-table thead tr");
+    if (!tbody || !theadRow) return;
+
+    const columns = (APP_STATE.columns && APP_STATE.columns.length)
+      ? APP_STATE.columns
+      : DEFAULT_COLUMNS;
+
+    // Build header
+    theadRow.innerHTML = columns.map((c) => `<th>${c.label}</th>`).join("") + `<th></th>`;
 
     tbody.innerHTML = "";
 
     const rows = getFilteredTasks();
 
+    const getValue = (task, col) => {
+      if (col.id === "title") return task.title || "";
+      if (col.id === "status") return task.status || "todo";
+      if (col.id === "assignee") return task.assigneeEmail || "";
+      if (col.id === "updatedAt") return task.updatedAt || null;
+      const fields = task.fields || {};
+      return fields[col.id];
+    };
+
+    const setValue = (task, col, val) => {
+      if (col.id === "title") {
+        task.title = val;
+        return;
+      }
+      if (col.id === "status") {
+        task.status = val;
+        return;
+      }
+      if (col.id === "assignee") {
+        task.assigneeEmail = val || null;
+        return;
+      }
+      if (col.id === "updatedAt") return;
+      task.fields = task.fields || {};
+      task.fields[col.id] = val;
+    };
+
+    const renderSelectOptions = (col) => {
+      const opts = Array.isArray(col.options) ? col.options : [];
+      return opts.map((o) => `<option value="${o.id}">${o.label}</option>`).join("");
+    };
+
     rows.forEach((task) => {
       const tr = document.createElement("tr");
 
-      // Title
-      const tdTitle = document.createElement("td");
-      const inp = document.createElement("input");
-      inp.className = "gt-task-title-input";
-      inp.value = task.title || "";
-      inp.onchange = () => {
-        task.title = inp.value;
-        touch(task);
-        renderBoardView();
-        if (APP_STATE.currentView === "dashboard" && canViewDashboard()) {
-          renderDashboardView();
-        }
-      };
-      tdTitle.appendChild(inp);
+      columns.forEach((col) => {
+        const td = document.createElement("td");
+        const current = getValue(task, col);
 
-      // Status
-      const tdStatus = document.createElement("td");
-      const selSt = document.createElement("select");
-      ["todo", "in_progress", "done"].forEach((s) => {
-        const o = document.createElement("option");
-        o.value = s;
-        o.textContent =
-          s === "todo"
-            ? "To Do"
-            : s === "in_progress"
-            ? "In Progress"
-            : "Done";
-        selSt.appendChild(o);
+        if (col.id === "updatedAt") {
+          td.innerHTML = `<span class="gt-tiny">${formatDateTimeShort(current)}</span>`;
+          tr.appendChild(td);
+          return;
+        }
+
+        switch (col.type) {
+          case "text": {
+            const inp = document.createElement("input");
+            inp.className = "gt-task-title-input";
+            inp.value = current || "";
+            inp.onchange = () => {
+              setValue(task, col, inp.value);
+              touch(task);
+              renderBoardView();
+              if (APP_STATE.currentView === "dashboard" && canViewDashboard()) {
+                renderDashboardView();
+              }
+            };
+            td.appendChild(inp);
+            break;
+          }
+          case "long_text": {
+            const ta = document.createElement("textarea");
+            ta.className = "gt-textarea";
+            ta.value = current || "";
+            ta.onchange = () => {
+              setValue(task, col, ta.value);
+              touch(task);
+            };
+            td.appendChild(ta);
+            break;
+          }
+          case "checkbox": {
+            const cb = document.createElement("input");
+            cb.type = "checkbox";
+            cb.checked = !!current;
+            cb.onchange = () => {
+              setValue(task, col, cb.checked);
+              touch(task);
+            };
+            td.appendChild(cb);
+            break;
+          }
+          case "single_select": {
+            const sel = document.createElement("select");
+            sel.innerHTML = `<option value="">Select…</option>` + renderSelectOptions(col);
+            sel.value = current || "";
+            sel.onchange = () => {
+              setValue(task, col, sel.value || null);
+              touch(task);
+              renderBoardView();
+            };
+            td.appendChild(sel);
+            break;
+          }
+          case "multi_select": {
+            const sel = document.createElement("select");
+            sel.multiple = true;
+            sel.size = 3;
+            sel.innerHTML = renderSelectOptions(col);
+            const selected = Array.isArray(current) ? current : [];
+            Array.from(sel.options).forEach((o) => {
+              o.selected = selected.includes(o.value);
+            });
+            sel.onchange = () => {
+              const vals = Array.from(sel.selectedOptions).map((o) => o.value);
+              setValue(task, col, vals);
+              touch(task);
+            };
+            td.appendChild(sel);
+            break;
+          }
+          case "user": {
+            const sel = document.createElement("select");
+            const optNone = document.createElement("option");
+            optNone.value = "";
+            optNone.textContent = "Unassigned";
+            sel.appendChild(optNone);
+            APP_STATE.staff.forEach((u) => {
+              const o = document.createElement("option");
+              o.value = u.email;
+              o.textContent = u.name;
+              sel.appendChild(o);
+            });
+            sel.value = current || "";
+            sel.onchange = () => {
+              setValue(task, col, sel.value || null);
+              touch(task);
+            };
+            td.appendChild(sel);
+            break;
+          }
+          case "date": {
+            const inp = document.createElement("input");
+            inp.type = "date";
+            inp.value = current ? current.slice(0, 10) : "";
+            inp.onchange = () => {
+              setValue(task, col, inp.value || null);
+              touch(task);
+            };
+            td.appendChild(inp);
+            break;
+          }
+          case "number": {
+            const inp = document.createElement("input");
+            inp.type = "number";
+            inp.value = current ?? "";
+            inp.onchange = () => {
+              setValue(task, col, inp.value === "" ? null : Number(inp.value));
+              touch(task);
+            };
+            td.appendChild(inp);
+            break;
+          }
+          default: {
+            const inp = document.createElement("input");
+            inp.className = "gt-task-title-input";
+            inp.value = current || "";
+            inp.onchange = () => {
+              setValue(task, col, inp.value);
+              touch(task);
+            };
+            td.appendChild(inp);
+          }
+        }
+
+        tr.appendChild(td);
       });
-      const prevStatus = task.status || "todo";
-      selSt.value = prevStatus;
-      selSt.onchange = () => {
-        const newStatus = selSt.value;
-        const oldStatus = task.status || "todo";
-        task.status = newStatus;
 
-        // completion timestamp
-        if (newStatus === "done" && !task.completedAt) {
-          task.completedAt = new Date().toISOString();
-        } else if (oldStatus === "done" && newStatus !== "done") {
-          task.completedAt = null;
-        }
-
-        touch(task);
-        renderBoardView();
-        if (APP_STATE.currentView === "dashboard" && canViewDashboard()) {
-          renderDashboardView();
-        }
-      };
-      tdStatus.appendChild(selSt);
-
-      // Assignee
-      const tdAss = document.createElement("td");
-      const selA = document.createElement("select");
-      const optNone = document.createElement("option");
-      optNone.value = "";
-      optNone.textContent = "Unassigned";
-      selA.appendChild(optNone);
-      APP_STATE.staff.forEach((u) => {
-        const o = document.createElement("option");
-        o.value = u.email;
-        o.textContent = u.name;
-        selA.appendChild(o);
-      });
-      selA.value = task.assigneeEmail || "";
-      selA.onchange = () => {
-        task.assigneeEmail = selA.value || null;
-        touch(task);
-        renderBoardView();
-        if (APP_STATE.currentView === "dashboard" && canViewDashboard()) {
-          renderDashboardView();
-        }
-      };
-      tdAss.appendChild(selA);
-
-      // Updated
-      const tdUpd = document.createElement("td");
-      tdUpd.innerHTML = `<span class="gt-tiny">${formatDateTimeShort(
-        task.updatedAt
-      )}</span>`;
-
-      // Delete
       const tdDel = document.createElement("td");
       const btn = document.createElement("button");
       btn.className = "gt-button gt-button-danger";
@@ -1092,8 +1425,8 @@
         }
       };
       tdDel.appendChild(btn);
+      tr.appendChild(tdDel);
 
-      tr.append(tdTitle, tdStatus, tdAss, tdUpd, tdDel);
       tbody.appendChild(tr);
     });
   }
@@ -1104,11 +1437,15 @@
     if (!root) return;
 
     const tasks = getFilteredTasks();
-    const columns = [
-      { id: "todo", label: "To Do" },
-      { id: "in_progress", label: "In Progress" },
-      { id: "done", label: "Done" },
-    ];
+    const statusCol = (APP_STATE.columns || []).find((c) => c.id === "status");
+    const statusOptions = statusCol && Array.isArray(statusCol.options) && statusCol.options.length
+      ? statusCol.options.map((o) => ({ id: o.id, label: o.label }))
+      : [
+          { id: "todo", label: "To Do" },
+          { id: "in_progress", label: "In Progress" },
+          { id: "done", label: "Done" },
+        ];
+    const columns = statusOptions;
 
     root.innerHTML = "";
 
@@ -1377,6 +1714,9 @@
         createWorkspaceFlow();
       };
     }
+
+    const fieldsBtn = document.getElementById("gt-manage-fields");
+    if (fieldsBtn) fieldsBtn.onclick = openFieldsModal;
 
     const switchBtn = document.getElementById("gt-switch-workspace");
     if (switchBtn) {

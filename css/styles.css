@@ -596,6 +596,40 @@ body {
   color: var(--gt-text-muted);
 }
 
+.gt-field-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gt-field-row {
+  border: 1px solid var(--gt-border-subtle);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fff;
+  gap: 10px;
+}
+
+.gt-field-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.gt-field-meta {
+  font-size: 12px;
+  color: var(--gt-text-muted);
+}
+
+.gt-field-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 /* Roles panel */
 .gt-roles-panel {
   border-top: 1px dashed var(--gt-border-subtle);

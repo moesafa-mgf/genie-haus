@@ -501,6 +501,16 @@ a:hover {
   border-radius: 999px;
 }
 
+.gt-grid-tab.has-hover-menu::after {
+  content: "▾";
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+  font-size: 10px;
+}
+
 .gt-grid-tab:hover {
   color: #111827;
 }

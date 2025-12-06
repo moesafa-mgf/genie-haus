@@ -640,6 +640,14 @@
     if (!grid) return;
     APP_STATE.currentGridId = gridId;
     APP_STATE.filters = { ...defaultFilters(), ...(grid.filters || {}) };
+    if (Array.isArray(grid.columns) && grid.columns.length) {
+      APP_STATE.columns = unlockColumns(grid.columns);
+    } else {
+      APP_STATE.columns = unlockColumns(DEFAULT_COLUMNS.slice());
+    }
+    if (Array.isArray(grid.tasks)) {
+      APP_STATE.tasks = grid.tasks.slice();
+    }
     if (APP_STATE.currentWorkspaceId) {
       APP_STATE.workspaceFilters[APP_STATE.currentWorkspaceId] = { ...APP_STATE.filters };
     }
@@ -660,7 +668,7 @@
     const activeId = APP_STATE.currentGridId;
     const tabs = APP_STATE.grids
       .map(
-        (g) => `<button class="gt-grid-tab${g.id === activeId ? " is-active" : ""}" data-grid="${g.id}">${g.name || "Grid"}</button>`
+        (g) => `<button class="gt-grid-tab${g.id === activeId ? " is-active" : ""}" data-grid="${g.id}" title="${g.name || "Grid"}">${g.name || "Grid"}</button>`
       )
       .join("");
 
@@ -675,6 +683,16 @@
       btn.addEventListener("click", () => {
         const id = btn.getAttribute("data-grid");
         setActiveGrid(id);
+      });
+      btn.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        openGridMenu(btn);
+      });
+      btn.addEventListener("mouseover", () => {
+        btn.classList.add("has-hover-menu");
+      });
+      btn.addEventListener("mouseout", () => {
+        btn.classList.remove("has-hover-menu");
       });
     });
 
@@ -909,6 +927,8 @@
     const active = APP_STATE.grids.find((g) => g.id === APP_STATE.currentGridId);
     if (!active) return;
     active.filters = { ...defaultFilters(), ...APP_STATE.filters };
+    active.columns = APP_STATE.columns ? unlockColumns(APP_STATE.columns) : unlockColumns(DEFAULT_COLUMNS.slice());
+    active.tasks = APP_STATE.tasks ? APP_STATE.tasks.slice() : [];
     if (APP_STATE.currentWorkspaceId) {
       APP_STATE.workspaceFilters[APP_STATE.currentWorkspaceId] = { ...APP_STATE.filters };
     }
@@ -920,6 +940,8 @@
       id: `grid_${Math.random().toString(36).slice(2, 6)}`,
       name: name || `Grid ${APP_STATE.grids.length + 1}`,
       filters: { ...defaultFilters() },
+      columns: unlockColumns(DEFAULT_COLUMNS.slice()),
+      tasks: [],
     };
     APP_STATE.grids.push(grid);
     setActiveGrid(grid.id);
@@ -1909,6 +1931,7 @@
     cols.splice(toIdx, 0, moved);
     APP_STATE.columns = cols;
     persistColumns();
+    persistCurrentGridFilters();
   }
 
   function reorderTasks(sourceId, targetId) {
@@ -1924,6 +1947,7 @@
     renderTasks();
     renderBoardView();
     schedulePush();
+    persistCurrentGridFilters();
   }
 
   function attachColumnDragHandlers(th, colId) {

@@ -180,13 +180,13 @@
 
               <!-- Main tasks shell (hidden until workspace chosen) -->
               <div id="gt-tasks-shell">
+                <div id="gt-grid-tabs" class="gt-grid-tabs"></div>
                 <div class="gt-view-tabs" id="gt-view-tabs">
                   <!-- view buttons injected by JS -->
                 </div>
 
                 <!-- TABLE VIEW -->
                 <div id="gt-view-table" class="gt-view-section">
-                  <div id="gt-grid-tabs" class="gt-grid-tabs"></div>
                   <div id="gt-filter-bar" class="gt-filter-bar"></div>
                   <div class="gt-table-wrapper">
                     <table class="gt-table">

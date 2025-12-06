@@ -248,16 +248,42 @@ a:hover {
   align-items: center;
   justify-content: center;
   padding: 24px 16px;
+  background: var(--gt-bg-page);
 }
 
 .gt-chooser-page:not(.is-hidden) {
   display: flex;
 }
 
+.gt-chooser-shell {
+  width: min(960px, 100%);
+  background: #ffffff;
+  border: 1px solid var(--gt-border-subtle);
+  border-radius: var(--gt-radius-lg);
+  box-shadow: var(--gt-shadow-soft);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.gt-chooser-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.gt-muted {
+  color: var(--gt-text-muted);
+  font-size: 12px;
+}
+
 .gt-workspace-picker-list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 10px;
+  width: 100%;
 }
 
 .gt-workspace-picker-item {
